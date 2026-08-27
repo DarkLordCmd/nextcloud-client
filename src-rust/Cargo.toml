@@ -1,0 +1,29 @@
+[package]
+name = "nextcloud-client"
+version = "0.1.0"
+edition = "2021"
+description = "Local backend for the NextCloud desktop client"
+
+[[bin]]
+name = "nextcloud-client"
+path = "src/main.rs"
+
+[dependencies]
+axum = { version = "0.7", features = ["multipart"] }
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", features = ["stream"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+quick-xml = { version = "0.36", features = ["serialize"] }
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+thiserror = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+futures = "0.3"
+bytes = "1"
+httpdate = "1"
+percent-encoding = "2"
+
+[profile.release]
+lto = true

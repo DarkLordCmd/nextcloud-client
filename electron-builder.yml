@@ -1,0 +1,22 @@
+appId: com.nextcloud.desktop-client
+productName: NextCloud Client
+directories:
+  output: dist
+
+files:
+  - src-electron/**
+  - src-ui/dist/**
+
+extraResources:
+  - from: src-rust/target/release/nextcloud-client.exe
+    to: bin/nextcloud-client.exe
+
+win:
+  target: nsis
+
+mac:
+  target: dmg
+  category: public.app-category.productivity
+
+linux:
+  target: AppImage

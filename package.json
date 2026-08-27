@@ -1,0 +1,40 @@
+{
+  "name": "nextcloud-client",
+  "productName": "NextCloud Client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Desktop client for NextCloud with a Rust backend and Electron + React frontend",
+  "main": "src-electron/main.js",
+  "scripts": {
+    "dev": "concurrently -k -n ui,app \"npm:dev:ui\" \"npm:dev:electron\"",
+    "dev:ui": "vite",
+    "dev:electron": "wait-on http://localhost:5173 && cross-env NODE_ENV=development electron src-electron/main.js",
+    "build:rust": "cargo build --release --manifest-path src-rust/Cargo.toml",
+    "build:ui": "vite build",
+    "build": "npm run build:rust && npm run build:ui",
+    "package": "npm run build && electron-builder",
+    "package:mac": "npm run build && electron-builder --mac",
+    "package:win": "npm run build && electron-builder --win",
+    "package:linux": "npm run build && electron-builder --linux"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^33.3.1",
+    "electron-builder": "^25.1.8",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "vite": "^5.4.11",
+    "wait-on": "^8.0.2"
+  },
+  "allowScripts": {
+    "electron@33.4.11": true,
+    "esbuild@0.21.5": true
+  }
+}
