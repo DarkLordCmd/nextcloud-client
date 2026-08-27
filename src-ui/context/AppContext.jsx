@@ -26,6 +26,7 @@ export function AppProvider({ children }) {
   const [operations, setOperations] = useState([]);
   const [dragOver, setDragOver] = useState(false);
   const [treeNodes, setTreeNodes] = useState({ '/': [] });
+  const [preview, setPreview] = useState(null);
 
   const pathRef = useRef('/');
   const filesRef = useRef([]);
@@ -138,6 +139,9 @@ export function AppProvider({ children }) {
   }, []);
 
   const clearSelection = useCallback(() => setSelected(new Set()), []);
+
+  const openPreview = useCallback((path) => setPreview(path), []);
+  const closePreview = useCallback(() => setPreview(null), []);
 
   // --- Operations (uploads) + SSE ---
   useEffect(() => {
@@ -333,6 +337,7 @@ export function AppProvider({ children }) {
       operations,
       dragOver,
       treeNodes,
+      preview,
       setError,
       inputRef,
       login,
@@ -353,6 +358,8 @@ export function AppProvider({ children }) {
       openUploadDialog,
       dismissOperation,
       ensureNode,
+      openPreview,
+      closePreview,
       setDragOver,
     }),
     [
@@ -366,6 +373,7 @@ export function AppProvider({ children }) {
       operations,
       dragOver,
       treeNodes,
+      preview,
       login,
       logout,
       navigate,
@@ -384,6 +392,8 @@ export function AppProvider({ children }) {
       openUploadDialog,
       dismissOperation,
       ensureNode,
+      openPreview,
+      closePreview,
     ]
   );
 

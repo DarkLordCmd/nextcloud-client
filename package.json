@@ -19,8 +19,12 @@
     "package:linux": "npm run build && electron-builder --linux"
   },
   "dependencies": {
+    "dompurify": "^3.4.14",
+    "mammoth": "^1.12.1",
+    "marked": "^18.0.11",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",

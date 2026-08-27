@@ -45,6 +45,9 @@ export const api = {
   downloadUrl(path) {
     return `${BACKEND}/api/files/download?path=${encodeURIComponent(path)}`;
   },
+  inlineDownloadUrl(path) {
+    return `${BACKEND}/api/files/download?path=${encodeURIComponent(path)}&inline=1`;
+  },
   async downloadBlob(path) {
     const res = await fetch(this.downloadUrl(path));
     if (!res.ok) {

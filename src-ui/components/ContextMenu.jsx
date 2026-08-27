@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { previewKind } from '../previewTypes';
 
 const MENU_ITEM =
   'w-full px-4 py-2 text-left text-sm hover:bg-nc-hover disabled:cursor-not-allowed disabled:opacity-50';
 
 export default function ContextMenu({ x, y, item, onClose }) {
-  const { downloadFile, renameItem, deleteSelected, toggleSelect, refresh } = useApp();
+  const { downloadFile, renameItem, deleteSelected, toggleSelect, refresh, openPreview } = useApp();
   const [pos, setPos] = useState({ x, y });
   const ref = useRef(null);
   const [renaming, setRenaming] = useState(false);
@@ -75,6 +76,16 @@ export default function ContextMenu({ x, y, item, onClose }) {
     >
       <button className={MENU_ITEM} onClick={handleDownload} disabled={item.is_directory}>
         ⬇ Download
+      </button>
+      <button
+        className={MENU_ITEM}
+        disabled={item.is_directory || !previewKind(item)}
+        onClick={() => {
+          onClose();
+          openPreview(item.path);
+        }}
+      >
+        👁 Preview
       </button>
       <button className={MENU_ITEM} onClick={handleRename}>
         ✏️ Rename

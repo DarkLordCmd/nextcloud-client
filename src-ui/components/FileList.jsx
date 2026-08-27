@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import FileIcon from './FileIcon';
 import ContextMenu from './ContextMenu';
+import { previewKind } from '../previewTypes';
 
 function formatBytes(bytes) {
   if (!bytes) return '—';
@@ -41,6 +42,7 @@ export default function FileList() {
     replaceSelection,
     navigate,
     downloadFile,
+    openPreview,
   } = useApp();
   const [sortKey, setSortKey] = useState('name');
   const [sortDir, setSortDir] = useState(1);
@@ -97,6 +99,7 @@ export default function FileList() {
 
   const onRowDoubleClick = (item) => {
     if (item.is_directory) navigate(item.path);
+    else if (previewKind(item)) openPreview(item.path);
     else downloadFile(item.path);
   };
 

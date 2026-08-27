@@ -19,3 +19,6 @@ npm-debug.log*
 Thumbs.db
 .idea/
 .vscode/
+
+# Local tooling data
+.repowise/

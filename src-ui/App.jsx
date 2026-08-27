@@ -6,9 +6,10 @@ import FileList from './components/FileList';
 import Toolbar from './components/Toolbar';
 import Breadcrumb from './components/Breadcrumb';
 import ProgressPanel from './components/ProgressPanel';
+import PreviewPanel from './components/PreviewPanel';
 
 function MainScreen() {
-  const { inputRef, dragOver, uploadFiles } = useApp();
+  const { inputRef, dragOver, uploadFiles, preview, closePreview } = useApp();
 
   return (
     <div className="relative flex h-full flex-col">
@@ -23,6 +24,8 @@ function MainScreen() {
       </div>
 
       <ProgressPanel />
+
+      {preview && <PreviewPanel path={preview} onClose={closePreview} />}
 
       <input
         ref={inputRef}
