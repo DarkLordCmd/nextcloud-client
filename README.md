@@ -1,10 +1,10 @@
 # NextCloud Client
 
-Desktop client for [NextCloud](https://nextcloud.com) with a Rust backend and an Electron + React frontend.
+Десктопный клиент для [NextCloud](https://nextcloud.com) с Rust-бэкендом и фронтендом на Electron + React.
 
-- **Backend:** Rust (`axum`) local HTTP server that talks to NextCloud via WebDAV / OCS
-- **Frontend:** Electron + React + Vite + TailwindCSS
-- **Progress:** file operations stream progress over SSE (Server-Sent Events)
+- **Бэкенд:** Rust (`axum`), локальный HTTP-сервер, общается с NextCloud через WebDAV / OCS
+- **Фронтенд:** Electron + React + Vite + TailwindCSS
+- **Прогресс:** ход операций передаётся по SSE (Server-Sent Events)
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -31,58 +31,58 @@ Desktop client for [NextCloud](https://nextcloud.com) with a Rust backend and an
               └─────────────────┘
 ```
 
-## Features
+## Возможности
 
-- Login with server URL, username and password (in-memory credentials, no tokens stored)
-- Two-pane file browser: folder tree on the left, file list on the right
-- Breadcrumb navigation, click a folder to navigate, double-click a file to download
-- Sortable columns (Name, Size, Modified), folders always on top
-- Upload with live progress bars over SSE, multi-file selection and drag & drop
-- Create folders, delete, rename (WebDAV MKCOL / DELETE / MOVE)
-- Download streams files straight from the server
-- Context menu, keyboard shortcuts (F5 refresh, Backspace up, Del delete, Ctrl+A select all, Ctrl+U upload)
-- File icons by MIME type
+- Вход по адресу сервера, логину и паролю (данные хранятся в памяти, на диск ничего не пишется)
+- Двухпанельный файловый менеджер: дерево папок слева, список файлов справа
+- Навигация по breadcrumb, клик по папке — переход внутрь, двойной клик по файлу — скачивание
+- Сортировка по колонкам (Имя, Размер, Изменён), папки всегда сверху
+- Загрузка файлов с живыми прогресс-барами через SSE, мультивыбор и drag & drop
+- Создание папок, удаление, переименование (WebDAV MKCOL / DELETE / MOVE)
+- Скачивание со стримингом напрямую с сервера
+- Контекстное меню, горячие клавиши (F5 обновить, Backspace вверх, Del удалить, Ctrl+A выделить всё, Ctrl+U загрузка)
+- Иконки файлов по MIME-типу
 
-## Requirements
+## Требования
 
 - Rust toolchain (rustc 1.85+)
-- Node.js 18+ and npm
+- Node.js 18+ и npm
 
-## Development
+## Разработка
 
 ```bash
 npm install
-npm run dev        # starts Vite dev server + Electron (spawns the Rust backend)
+npm run dev        # запускает Vite dev server + Electron (поднимает Rust-бэкенд)
 ```
 
-## Build & package
+## Сборка и упаковка
 
 ```bash
-npm run build       # release build of the Rust backend + Vite build of the UI
-npm run package:win # NSIS installer (Windows)
+npm run build       # release-сборка Rust-бэкенда + Vite-сборка UI
+npm run package:win # установщик NSIS (Windows)
 npm run package:mac # DMG (macOS)
 npm run package:linux # AppImage (Linux)
 ```
 
-The Rust binary is bundled into the app via `electron-builder` `extraResources`.
-Note: the packaged binary name (`nextcloud-client` vs `nextcloud-client.exe`) is
-platform-specific — adjust `electron-builder.yml` when packaging for macOS/Linux.
+Rust-бинарник встраивается в приложение через `electron-builder` `extraResources`.
+Обратите внимание: имя бинарника (`nextcloud-client` vs `nextcloud-client.exe`)
+зависит от платформы — при сборке для macOS/Linux поправьте `electron-builder.yml`.
 
-## API (local backend)
+## API (локальный бэкенд)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/auth/login` | Save server + credentials and verify the connection |
-| `GET` | `/api/auth/status` | Check whether credentials are present |
-| `POST` | `/api/auth/logout` | Clear credentials |
-| `GET` | `/api/files?path=/` | List files and folders by path |
-| `GET` | `/api/files/download?path=...` | Stream a file to the client |
-| `POST` | `/api/files/upload?path=...` | Upload a file (multipart) |
-| `DELETE` | `/api/files?path=...` | Delete a file or folder |
-| `POST` | `/api/files/mkdir?path=...` | Create a folder |
-| `PATCH` | `/api/files/rename` | Rename a file/folder |
-| `GET` | `/api/files/progress` | SSE stream of operation progress |
+| Метод | Путь | Описание |
+|-------|------|----------|
+| `POST` | `/api/auth/login` | Сохранить адрес сервера и учётные данные, проверить соединение |
+| `GET` | `/api/auth/status` | Проверить наличие сохранённых учётных данных |
+| `POST` | `/api/auth/logout` | Очистить учётные данные |
+| `GET` | `/api/files?path=/` | Листинг файлов и папок по пути |
+| `GET` | `/api/files/download?path=...` | Стриминг файла клиенту |
+| `POST` | `/api/files/upload?path=...` | Загрузить файл (multipart) |
+| `DELETE` | `/api/files?path=...` | Удалить файл или папку |
+| `POST` | `/api/files/mkdir?path=...` | Создать папку |
+| `PATCH` | `/api/files/rename` | Переименовать файл/папку |
+| `GET` | `/api/files/progress` | SSE-поток прогресса операций |
 
-## License
+## Лицензия
 
 [MIT](LICENSE)
