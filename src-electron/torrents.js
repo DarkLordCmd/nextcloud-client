@@ -150,7 +150,7 @@ async function addCloudTorrent(cloudPath, targetDir) {
 }
 
 function statusPayload(st) {
-  return {
+  const p = {
     gid: st.gid,
     name:
       st.bittorrent && st.bittorrent.info && st.bittorrent.info.name
@@ -162,8 +162,16 @@ function statusPayload(st) {
     totalLength: parseInt(st.totalLength || '0', 10),
     completedLength: parseInt(st.completedLength || '0', 10),
     downloadSpeed: parseInt(st.downloadSpeed || '0', 10),
+    uploadSpeed: parseInt(st.uploadSpeed || '0', 10),
+    numSeeders: parseInt(st.numSeeders || '0', 10),
+    connections: parseInt(st.connections || '0', 10),
+    seeder: st.seeder === true,
     files: st.files ? st.files.map((f) => f.path) : [],
   };
+  p.percent = p.totalLength > 0 ? Math.round((p.completedLength / p.totalLength) * 100) : 0;
+  p.eta =
+    p.downloadSpeed > 0 ? Math.round((p.totalLength - p.completedLength) / p.downloadSpeed) : null;
+  return p;
 }
 
 async function poll() {
@@ -173,10 +181,6 @@ async function poll() {
     const waiting = (await rpc('aria2.tellWaiting', [0, 100])) || [];
     const stopped = (await rpc('aria2.tellStopped', [0, 100])) || [];
     const items = [...active, ...waiting].map((st) => statusPayload(st));
-    for (const it of items) {
-      it.percent =
-        it.totalLength > 0 ? Math.round((it.completedLength / it.totalLength) * 100) : 0;
-    }
     const win = getMainWindow();
     if (win) {
       win.webContents.send('torrent:status', {

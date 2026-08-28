@@ -4,6 +4,25 @@ import { useI18n } from '../i18n';
 const inputCls =
   'w-full rounded-lg border border-nc-border bg-nc-bg px-3 py-2 text-nc-text placeholder-nc-muted';
 
+function formatSpeed(bytesPerSec) {
+  if (!bytesPerSec) return '0 B/s';
+  const units = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
+  let n = bytesPerSec;
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) {
+    n /= 1024;
+    i += 1;
+  }
+  return `${n.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
+function formatEta(seconds) {
+  if (seconds == null || seconds < 0) return '—';
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+  return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
+}
+
 export default function TorrentsPanel({ onClose }) {
   const { t } = useI18n();
   const [magnet, setMagnet] = useState('');
@@ -174,10 +193,30 @@ export default function TorrentsPanel({ onClose }) {
                   <span className="shrink-0 text-xs text-nc-muted">{percent}%</span>
                 </div>
                 <div className="mt-1 flex items-center justify-between text-xs text-nc-muted">
-                  <span>
-                    {tor.downloadSpeed > 0
-                      ? `${(tor.downloadSpeed / 1024 / 1024).toFixed(1)} MB/s`
-                      : ''}
+                  <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    {tor.downloadSpeed > 0 && (
+                      <span title="↓">
+                        ↓ {formatSpeed(tor.downloadSpeed)}
+                      </span>
+                    )}
+                    {tor.uploadSpeed > 0 && (
+                      <span title="↑">
+                        ↑ {formatSpeed(tor.uploadSpeed)}
+                      </span>
+                    )}
+                    {!tor.seeder && (
+                      <span title={t('torrents.seeds')}>
+                        S: {tor.numSeeders}
+                      </span>
+                    )}
+                    <span title={t('torrents.peers')}>
+                      P: {tor.connections}
+                    </span>
+                    {tor.eta != null && tor.status === 'downloading' && (
+                      <span title={t('torrents.eta')}>
+                        ⏱ {formatEta(tor.eta)}
+                      </span>
+                    )}
                   </span>
                   <div className="flex gap-1">
                     <button

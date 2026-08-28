@@ -113,6 +113,9 @@ const messages = {
     'torrents.statusSeeding': 'Seeding',
     'torrents.noTorrents': 'No torrents yet',
     'torrents.adding': 'Adding…',
+    'torrents.seeds': 'Seeds',
+    'torrents.peers': 'Peers',
+    'torrents.eta': 'Time left',
   },
   ru: {
     language: 'Язык',
@@ -226,6 +229,9 @@ const messages = {
     'torrents.statusSeeding': 'Раздача',
     'torrents.noTorrents': 'Торрентов пока нет',
     'torrents.adding': 'Добавление…',
+    'torrents.seeds': 'Сиды',
+    'torrents.peers': 'Пиры',
+    'torrents.eta': 'Осталось',
   },
 };
 
