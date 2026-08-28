@@ -44,7 +44,7 @@ impl<T: Serialize> ApiOk<T> {
 }
 
 /// Application-wide error type. All handlers return `Result<_, AppError>`.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum AppError {
     #[error("Not authenticated. Please log in first.")]
     NotAuthenticated,

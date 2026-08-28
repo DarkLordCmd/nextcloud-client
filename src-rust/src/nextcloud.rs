@@ -89,6 +89,21 @@ fn method(name: &'static str) -> Method {
     Method::from_bytes(name.as_bytes()).unwrap_or(Method::POST)
 }
 
+pub(crate) fn dav_method(name: &'static str) -> Method {
+    method(name)
+}
+
+/// Base URL for chunked upload v2 transfer sessions, e.g.
+/// `https://host/remote.php/dav/uploads/alice/`.
+pub fn dav_uploads_base(auth: &AuthState) -> String {
+    let username = encode_segment(&auth.username);
+    format!(
+        "{}/remote.php/dav/uploads/{}/",
+        auth.server.trim_end_matches('/'),
+        username
+    )
+}
+
 pub fn status_error(status: StatusCode, body: &str) -> AppError {
     let message = match status.as_u16() {
         401 => "Invalid credentials or insufficient permissions".to_string(),
