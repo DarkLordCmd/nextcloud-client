@@ -163,6 +163,10 @@ export default function FileList() {
                 onDoubleClick={() => onRowDoubleClick(item)}
                 onContextMenu={(e) => onContextMenu(e, item)}
                 onDragStart={(e) => {
+                  // Must cancel the default HTML5 drag so the OS-level
+                  // startDrag() (called from the main process once the file
+                  // is downloaded) can take over the drag operation.
+                  e.preventDefault();
                   // If this row is part of a multi-selection, drag them all;
                   // otherwise just this item.
                   const multi = selected.has(item.path) && selected.size > 1;
