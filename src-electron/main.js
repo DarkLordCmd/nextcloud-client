@@ -6,6 +6,7 @@ const http = require('http');
 const { initDownloadsModule } = require('./downloads');
 const { initUpdater, checkForUpdates } = require('./updater');
 const { initDragOutModule, cleanupDragDirs } = require('./dragout');
+const { initTorrentsModule, shutdownTorrents } = require('./torrents');
 
 let rustProcess = null;
 let backendPort = 7842;
@@ -246,6 +247,11 @@ app.whenReady().then(() => {
     backendPort: () => backendPort,
     backendToken: () => backendToken,
   });
+  initTorrentsModule({
+    getMainWindow: () => mainWindow,
+    backendPort: () => backendPort,
+    backendToken: () => backendToken,
+  });
 
   ipcMain.handle('updates:check', () => checkForUpdates());
 
@@ -271,6 +277,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   cleanupDragDirs();
+  shutdownTorrents();
   killBackend();
 });
 
