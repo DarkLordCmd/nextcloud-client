@@ -264,12 +264,39 @@ export function AppProvider({ children }) {
     URL.revokeObjectURL(url);
   }, []);
 
+  // Download many files in parallel with a concurrency limit. Throws the first
+  // error encountered after all downloads finish.
+  const downloadMany = useCallback(
+    async (paths) => {
+      const CONCURRENCY = 3;
+      let next = 0;
+      let firstError = null;
+      const workers = Array.from(
+        { length: Math.min(CONCURRENCY, paths.length) },
+        async () => {
+          while (next < paths.length) {
+            const p = paths[next];
+            next += 1;
+            try {
+              await downloadFile(p);
+            } catch (e) {
+              if (!firstError) firstError = e;
+            }
+          }
+        }
+      );
+      await Promise.all(workers);
+      if (firstError) throw firstError;
+    },
+    [downloadFile]
+  );
+
   const uploadFiles = useCallback(
     async (filesToUpload) => {
       const dir = pathRef.current;
       invalidateCache(dir);
       // Upload several files in parallel with a small concurrency limit.
-      const CONCURRENCY = 3;
+      const CONCURRENCY = 5;
       let next = 0;
       const workers = Array.from(
         { length: Math.min(CONCURRENCY, filesToUpload.length) },
@@ -428,6 +455,7 @@ export function AppProvider({ children }) {
       replaceSelection,
       clearSelection,
       downloadFile,
+      downloadMany,
       uploadFiles,
       createFolder,
       deleteSelected,
@@ -462,6 +490,7 @@ export function AppProvider({ children }) {
       replaceSelection,
       clearSelection,
       downloadFile,
+      downloadMany,
       uploadFiles,
       createFolder,
       deleteSelected,

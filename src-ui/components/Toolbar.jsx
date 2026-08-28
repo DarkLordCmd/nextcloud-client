@@ -8,7 +8,7 @@ export default function Toolbar() {
   const {
     openUploadDialog,
     createFolder,
-    downloadFile,
+    downloadMany,
     deleteSelected,
     refresh,
     selected,
@@ -48,10 +48,10 @@ export default function Toolbar() {
   };
 
   const handleDownload = async () => {
-    const fileItem = selectedItems.find((f) => !f.is_directory);
-    if (!fileItem) return;
+    const filePaths = selectedItems.filter((f) => !f.is_directory).map((f) => f.path);
+    if (filePaths.length === 0) return;
     try {
-      await downloadFile(fileItem.path);
+      await downloadMany(filePaths);
     } catch (e) {
       window.alert(e.message);
     }

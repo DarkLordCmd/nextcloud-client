@@ -33,11 +33,24 @@ impl AppState {
     pub fn new() -> Self {
         Self {
             auth: Arc::new(RwLock::new(None)),
-            http: reqwest::Client::new(),
+            http: build_http_client(),
             progress_tx: broadcast::channel(256).0,
             next_id: Arc::new(std::sync::atomic::AtomicU64::new(1)),
         }
     }
+}
+
+/// Shared HTTP client tuned for throughput: HTTP/2 (multiplexing + adaptive
+/// flow-control windows) and a healthy per-host connection pool. Falls back to
+/// the plain default client if the custom builder fails.
+fn build_http_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .http2_adaptive_window(true)
+        .http2_initial_stream_window_size(1024 * 1024)
+        .http2_initial_connection_window_size(1024 * 1024)
+        .pool_max_idle_per_host(8)
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new())
 }
 
 /// Build the full HTTP router with CORS, logging and no body size limit.
