@@ -5,10 +5,29 @@ const BACKEND =
     ? `http://127.0.0.1:${window.nextcloud.backendPort}`
     : 'http://127.0.0.1:7842';
 
+// Per-session token that the local backend requires. It is injected by the
+// Electron preload bridge; without it every /api/* request is rejected with
+// 401, which stops other local processes and websites from using the backend.
+const TOKEN =
+  (typeof window !== 'undefined' && window.nextcloud && window.nextcloud.backendToken) || '';
+
+const AUTH_HEADERS = TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {};
+
+// EventSource and <img>/<video>/<iframe> tags cannot set custom headers, so
+// the token is also accepted as a query parameter.
+function withToken(url) {
+  if (!TOKEN) return url;
+  const sep = url.includes('?') ? '&' : '?';
+  return `${url}${sep}token=${encodeURIComponent(TOKEN)}`;
+}
+
 async function request(path, options = {}) {
   let res;
   try {
-    res = await fetch(`${BACKEND}${path}`, options);
+    res = await fetch(`${BACKEND}${path}`, {
+      ...options,
+      headers: { ...(options.headers || {}), ...AUTH_HEADERS },
+    });
   } catch (e) {
     throw new Error('Cannot reach the local backend. Please restart the app.');
   }
@@ -43,10 +62,12 @@ export const api = {
     return request(`/api/files?path=${encodeURIComponent(path)}`);
   },
   downloadUrl(path) {
-    return `${BACKEND}/api/files/download?path=${encodeURIComponent(path)}`;
+    return withToken(`${BACKEND}/api/files/download?path=${encodeURIComponent(path)}`);
   },
   inlineDownloadUrl(path) {
-    return `${BACKEND}/api/files/download?path=${encodeURIComponent(path)}&inline=1`;
+    return withToken(
+      `${BACKEND}/api/files/download?path=${encodeURIComponent(path)}&inline=1`
+    );
   },
   async downloadBlob(path) {
     const res = await fetch(this.downloadUrl(path));
@@ -86,6 +107,6 @@ export const api = {
     });
   },
   progressUrl() {
-    return `${BACKEND}/api/files/progress`;
+    return withToken(`${BACKEND}/api/files/progress`);
   },
 };

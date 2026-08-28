@@ -6,6 +6,7 @@ const http = require('http');
 
 let rustProcess = null;
 let backendPort = 7842;
+let backendToken = '';
 let mainWindow = null;
 
 function isDev() {
@@ -45,10 +46,12 @@ function startBackend() {
 
   rustProcess.stdout.on('data', (chunk) => {
     const text = chunk.toString();
-    // Parse READY:<port> to learn the actual backend port.
-    const match = text.match(/READY:(\d+)/);
+    // Parse READY:<port>:<token> to learn the actual backend port and the
+    // per-session auth token.
+    const match = text.match(/READY:(\d+)(?::(\S+))?/);
     if (match) {
       backendPort = parseInt(match[1], 10);
+      if (match[2]) backendToken = match[2];
       onBackendReady();
     } else {
       console.log('[rust]', text.trim());
@@ -96,7 +99,7 @@ function pollBackend() {
 
 function checkHealth(callback) {
   const req = http.get(
-    { host: '127.0.0.1', port: backendPort, path: '/api/auth/status', timeout: 1000 },
+    { host: '127.0.0.1', port: backendPort, path: '/health', timeout: 1000 },
     (res) => {
       res.resume();
       callback(res.statusCode >= 200 && res.statusCode < 500);
@@ -139,8 +142,12 @@ function createWindow() {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
       preload: path.join(__dirname, 'preload.js'),
-      additionalArguments: [`--backend-port=${backendPort}`],
+      additionalArguments: [
+        `--backend-port=${backendPort}`,
+        `--backend-token=${backendToken}`,
+      ],
     },
   });
 

@@ -6,6 +6,7 @@ pub mod server;
 pub mod upload;
 
 use std::net::SocketAddr;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use tokio::net::TcpListener;
 
@@ -18,7 +19,12 @@ async fn main() {
         )
         .init();
 
-    let state = server::AppState::new();
+    let token = std::env::var("NEXTCLOUD_TOKEN")
+        .ok()
+        .filter(|t| !t.is_empty())
+        .unwrap_or_else(generate_token);
+
+    let state = server::AppState::new(token.clone());
     let port = server::find_free_port(7842).await;
     let app = server::build_router(state);
 
@@ -31,12 +37,29 @@ async fn main() {
         }
     };
 
-    // Signal readiness to the Electron host so it knows which port to use.
-    println!("READY:{port}");
+    // Signal readiness and the session token to the Electron host.
+    println!("READY:{port}:{token}");
     tracing::info!(port, "backend listening");
 
     if let Err(e) = axum::serve(listener, app).await {
         tracing::error!(%e, "server error");
         std::process::exit(1);
+    }
+}
+
+/// Generate a random 256-bit session token (hex-encoded). Falls back to a
+/// timestamp-based value if the OS randomness source is unavailable.
+fn generate_token() -> String {
+    let mut buf = [0u8; 32];
+    if getrandom::getrandom(&mut buf).is_ok() {
+        buf.iter().map(|b| format!("{b:02x}")).collect()
+    } else {
+        format!(
+            "nc-{:x}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or_default()
+        )
     }
 }

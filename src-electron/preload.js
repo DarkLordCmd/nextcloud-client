@@ -1,12 +1,14 @@
 const { contextBridge } = require('electron');
 
-// Read the backend port passed via additionalArguments.
-function getBackendPort() {
-  const arg = process.argv.find((a) => a.startsWith('--backend-port='));
-  return arg ? arg.split('=')[1] : '7842';
+// Read values passed via additionalArguments (sandboxed preloads still get
+// process.argv with those arguments appended).
+function arg(name) {
+  const found = process.argv.find((a) => a.startsWith(`${name}=`));
+  return found ? found.slice(name.length + 1) : undefined;
 }
 
 contextBridge.exposeInMainWorld('nextcloud', {
-  backendPort: getBackendPort(),
+  backendPort: arg('--backend-port') || '7842',
+  backendToken: arg('--backend-token') || '',
   platform: process.platform,
 });

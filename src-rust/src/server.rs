@@ -1,9 +1,12 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use axum::{
     Json,
-    extract::State,
-    response::IntoResponse,
+    extract::{Request, State},
+    http::{HeaderValue, Method, StatusCode, header::AUTHORIZATION},
+    middleware::{self, Next},
+    response::{IntoResponse, Response},
     routing::{get, patch, post},
     Router,
 };
@@ -27,15 +30,20 @@ pub struct AppState {
     pub progress_tx: broadcast::Sender<ProgressEvent>,
     /// Monotonic counter used to generate unique operation ids.
     pub next_id: Arc<std::sync::atomic::AtomicU64>,
+    /// Random per-session secret. Every `/api/*` request must carry it so that
+    /// only our own UI (which receives it via the Electron preload bridge) can
+    /// talk to the local backend.
+    pub token: String,
 }
 
 impl AppState {
-    pub fn new() -> Self {
+    pub fn new(token: String) -> Self {
         Self {
             auth: Arc::new(RwLock::new(None)),
             http: build_http_client(),
             progress_tx: broadcast::channel(256).0,
             next_id: Arc::new(std::sync::atomic::AtomicU64::new(1)),
+            token,
         }
     }
 }
@@ -53,8 +61,61 @@ fn build_http_client() -> reqwest::Client {
         .unwrap_or_else(|_| reqwest::Client::new())
 }
 
-/// Build the full HTTP router with CORS, logging and no body size limit.
+/// Reject any `/api/*` request that does not carry the session token (either
+/// as `Authorization: Bearer <token>` or `?token=`). Preflights and `/health`
+/// are exempt so the browser CORS handshake and the readiness probe still work.
+async fn require_token(
+    State(state): State<AppState>,
+    req: Request,
+    next: Next,
+) -> Result<Response, Response> {
+    if req.method() == Method::OPTIONS || req.uri().path() == "/health" {
+        return Ok(next.run(req).await);
+    }
+    let header_ok = req
+        .headers()
+        .get(AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .map(|t| t == state.token.as_str())
+        .unwrap_or(false);
+    let query_ok = req
+        .uri()
+        .query()
+        .map(|q| {
+            q.split('&').any(|kv| {
+                kv.strip_prefix("token=")
+                    .map(|t| t == state.token.as_str())
+                    .unwrap_or(false)
+            })
+        })
+        .unwrap_or(false);
+    if header_ok || query_ok {
+        Ok(next.run(req).await)
+    } else {
+        Err(StatusCode::UNAUTHORIZED.into_response())
+    }
+}
+
+/// Build the full HTTP router with auth token, CORS, logging and no body size limit.
 pub fn build_router(state: AppState) -> Router {
+    // CORS is restricted to our own origins: the Vite dev server and the
+    // packaged app (which reports a `null` origin from file://).
+    let cors = CorsLayer::new()
+        .allow_origin(vec![
+            HeaderValue::from_static("http://localhost:5173"),
+            HeaderValue::from_static("null"),
+        ])
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PATCH,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
+        .allow_headers([AUTHORIZATION, axum::http::header::CONTENT_TYPE])
+        .max_age(Duration::from_secs(3600));
+
     Router::new()
         .route("/health", get(health))
         .route("/api/auth/login", post(auth::login))
@@ -69,9 +130,10 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/files/mkdir", post(nextcloud::mkdir))
         .route("/api/files/rename", patch(nextcloud::rename))
         .route("/api/files/progress", get(upload::progress_sse))
-        .layer(TraceLayer::new_for_http())
-        .layer(CorsLayer::permissive())
         .layer(axum::extract::DefaultBodyLimit::disable())
+        .layer(middleware::from_fn_with_state(state.clone(), require_token))
+        .layer(cors)
+        .layer(TraceLayer::new_for_http())
         .with_state(state)
 }
 
