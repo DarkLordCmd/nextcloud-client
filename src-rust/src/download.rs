@@ -3,7 +3,8 @@ use axum::{
     http::{
         HeaderMap,
         header::{
-            ACCEPT_RANGES, CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE, RANGE,
+            ACCEPT_RANGES, CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_RANGE,
+            CONTENT_TYPE, ETAG, RANGE,
         },
     },
     response::Response,
@@ -90,6 +91,14 @@ pub async fn download_file(
     }
     if let Some(v) = resp.headers().get(ACCEPT_RANGES) {
         builder = builder.header(ACCEPT_RANGES, v);
+    }
+    // Pass caching headers through so repeated previews (images, PDFs, media)
+    // can be served from the browser cache instead of re-downloading.
+    if let Some(v) = resp.headers().get(ETAG) {
+        builder = builder.header(ETAG, v);
+    }
+    if let Some(v) = resp.headers().get(CACHE_CONTROL) {
+        builder = builder.header(CACHE_CONTROL, v);
     }
 
     let body = axum::body::Body::from_stream(resp.bytes_stream());

@@ -2,12 +2,23 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../context/AppContext';
 import { api } from '../api';
 import { previewKind, isZoomableKind } from '../previewTypes';
-import { marked } from 'marked';
-import DOMPurify from 'dompurify';
-import mammoth from 'mammoth';
-import * as XLSX from 'xlsx';
 
 const NAV_DEBOUNCE_MS = 400;
+
+// Returns true when the wheel event target sits inside an element that can
+// actually scroll vertically (has a scrollbar). Such events must scroll the
+// content natively instead of switching to the next/previous file.
+function isScrollableTarget(target) {
+  let el = target instanceof Element ? target : null;
+  while (el && el !== document.documentElement) {
+    const overflowY = window.getComputedStyle(el).overflowY;
+    if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') {
+      if (el.scrollHeight > el.clientHeight + 1) return true;
+    }
+    el = el.parentElement;
+  }
+  return false;
+}
 
 export default function PreviewPanel({ path, onClose }) {
   const { files, downloadFile } = useApp();
@@ -43,7 +54,9 @@ export default function PreviewPanel({ path, onClose }) {
     setZoom((z) => Math.min(4, Math.max(0.25, Math.round((z + delta) * 100) / 100)));
   }, []);
 
-  // Load text / markdown / office content asynchronously.
+  // Load text / markdown / office content asynchronously. Heavy libraries
+  // (marked, dompurify, mammoth, xlsx) are imported lazily so they only load
+  // when a preview actually needs them (Vite code-splits them out of the bundle).
   useEffect(() => {
     setText(null);
     setDocHtml(null);
@@ -52,52 +65,59 @@ export default function PreviewPanel({ path, onClose }) {
     let cancelled = false;
     const fetchBlob = () => api.downloadBlob(item.path);
 
-    if (kind === 'text' || kind === 'markdown') {
-      fetchBlob()
-        .then(async (blob) => {
+    const loadDoc = async () => {
+      try {
+        const blob = await fetchBlob();
+        if (cancelled) return;
+        const buf = await blob.arrayBuffer();
+        if (kind === 'markdown') {
+          const [{ marked }, { default: DOMPurify }] = await Promise.all([
+            import('marked'),
+            import('dompurify'),
+          ]);
           if (cancelled) return;
-          setText(await blob.text());
-        })
-        .catch((e) => {
-          if (!cancelled) setTextError(e.message);
-        });
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    if (kind === 'document' || kind === 'spreadsheet') {
-      fetchBlob()
-        .then(async (blob) => {
+          const text = new TextDecoder().decode(buf);
+          const parsed = marked.parse(text, { breaks: true });
+          const raw = typeof parsed === 'string' ? parsed : '';
+          setDocHtml(DOMPurify.sanitize(raw));
+        } else if (kind === 'text') {
+          setText(new TextDecoder().decode(buf));
+        } else if (kind === 'document') {
+          const [{ default: mammoth }, { default: DOMPurify }] = await Promise.all([
+            import('mammoth'),
+            import('dompurify'),
+          ]);
           if (cancelled) return;
-          const buf = await blob.arrayBuffer();
-          if (kind === 'document') {
-            const result = await mammoth.convertToHtml({ arrayBuffer: buf });
-            if (!cancelled) setDocHtml(DOMPurify.sanitize(result.value));
-          } else {
-            const wb = XLSX.read(buf, { type: 'array' });
-            const ws = wb.SheetNames.length > 0 ? wb.Sheets[wb.SheetNames[0]] : null;
-            const html = ws ? XLSX.utils.sheet_to_html(ws, { editable: false }) : '<p>Лист пуст</p>';
-            if (!cancelled) setDocHtml(DOMPurify.sanitize(html));
-          }
-        })
-        .catch((e) => {
-          if (!cancelled) setTextError(e.message);
-        });
-      return () => {
-        cancelled = true;
-      };
-    }
+          const result = await mammoth.convertToHtml({ arrayBuffer: buf });
+          setDocHtml(DOMPurify.sanitize(result.value));
+        } else if (kind === 'spreadsheet') {
+          const [{ default: DOMPurify }, XLSX] = await Promise.all([
+            import('dompurify'),
+            import('xlsx'),
+          ]);
+          if (cancelled) return;
+          const wb = XLSX.read(buf, { type: 'array' });
+          const ws = wb.SheetNames.length > 0 ? wb.Sheets[wb.SheetNames[0]] : null;
+          const html = ws
+            ? XLSX.utils.sheet_to_html(ws, { editable: false })
+            : '<p>Лист пуст</p>';
+          setDocHtml(DOMPurify.sanitize(html));
+        }
+      } catch (e) {
+        if (!cancelled) setTextError(e.message);
+      }
+    };
+    loadDoc();
 
-    return undefined;
+    return () => {
+      cancelled = true;
+    };
   }, [item && item.path, kind]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const html = useMemo(() => {
-    if (kind !== 'markdown' || text == null) return null;
-    const parsed = marked.parse(text, { breaks: true });
-    const raw = typeof parsed === 'string' ? parsed : '';
-    return DOMPurify.sanitize(raw);
-  }, [kind, text]);
+    if (kind !== 'markdown' || docHtml == null) return null;
+    return docHtml;
+  }, [kind, docHtml]);
 
   // Reset zoom when switching files.
   useEffect(() => {
@@ -129,6 +149,9 @@ export default function PreviewPanel({ path, onClose }) {
         }
         return;
       }
+      // If the wheel is over an inner scrollable area (e.g. a long text or
+      // zoomed image), let it scroll natively instead of switching files.
+      if (isScrollableTarget(target)) return;
       const now = Date.now();
       if (now - lastWheel.current < NAV_DEBOUNCE_MS) return;
       lastWheel.current = now;

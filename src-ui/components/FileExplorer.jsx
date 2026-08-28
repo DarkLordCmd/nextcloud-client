@@ -8,8 +8,8 @@ function FolderNode({ path, name, depth }) {
   const children = treeNodes[path] || [];
 
   useEffect(() => {
-    if (treeNodes[path] === undefined) ensureNode(path);
-  }, [path]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (expanded && treeNodes[path] === undefined) ensureNode(path);
+  }, [expanded, path]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const active = currentPath === path;
 

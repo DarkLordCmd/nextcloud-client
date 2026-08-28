@@ -33,6 +33,11 @@ export function AppProvider({ children }) {
   const selectedRef = useRef(new Set());
   const inputRef = useRef(null);
   const operationsRef = useRef([]);
+  // Sequence guard so a stale list() response cannot overwrite a newer one.
+  const listSeq = useRef(0);
+  // Short-lived listing cache (path -> { files, ts }) for instant back-navigation.
+  const listCache = useRef(new Map());
+  const LIST_CACHE_TTL = 20000;
 
   useEffect(() => {
     pathRef.current = currentPath;
@@ -56,16 +61,47 @@ export function AppProvider({ children }) {
       .finally(() => setAuthLoading(false));
   }, []);
 
+  const invalidateCache = useCallback((path) => {
+    listCache.current.delete(path);
+    if (path && path !== '/') {
+      const parent = path.slice(0, path.lastIndexOf('/')) || '/';
+      listCache.current.delete(parent);
+    }
+  }, []);
+
   const loadFiles = useCallback(async (path) => {
-    setLoading(true);
+    const seq = ++listSeq.current;
     setError(null);
+
+    // Serve a fresh cache entry instantly, then refresh in the background.
+    const cached = listCache.current.get(path);
+    if (cached && Date.now() - cached.ts < LIST_CACHE_TTL) {
+      setFiles(cached.files);
+      setLoading(false);
+      try {
+        const data = await api.list(path);
+        if (seq !== listSeq.current) return;
+        setFiles(data.files || []);
+        listCache.current.set(path, { files: data.files || [], ts: Date.now() });
+      } catch (e) {
+        if (seq === listSeq.current) setError(e.message);
+      } finally {
+        if (seq === listSeq.current) setLoading(false);
+      }
+      return;
+    }
+
+    setLoading(true);
     try {
       const data = await api.list(path);
+      if (seq !== listSeq.current) return;
       setFiles(data.files || []);
+      listCache.current.set(path, { files: data.files || [], ts: Date.now() });
     } catch (e) {
+      if (seq !== listSeq.current) return;
       setError(e.message);
     } finally {
-      setLoading(false);
+      if (seq === listSeq.current) setLoading(false);
     }
   }, []);
 
@@ -148,28 +184,50 @@ export function AppProvider({ children }) {
     if (!auth || !auth.logged_in) return;
     const es = new EventSource(api.progressUrl());
 
-    const upsert = (evt) => {
+    // Throttle progress updates: accumulate events by id and flush at most
+    // every ~150ms, except terminal (done/error) events which flush at once.
+    const pending = new Map();
+    let flushTimer = null;
+    const flush = () => {
+      if (flushTimer) {
+        clearTimeout(flushTimer);
+        flushTimer = null;
+      }
+      const updates = Array.from(pending.entries());
+      pending.clear();
+      if (updates.length === 0) return;
       setOperations((prev) => {
-        const idx = prev.findIndex((op) => op.id === evt.id);
-        if (idx === -1) return [...prev, evt];
         const next = [...prev];
-        next[idx] = evt;
+        for (const [id, evt] of updates) {
+          const idx = next.findIndex((op) => op.id === id);
+          if (idx === -1) next.push(evt);
+          else next[idx] = evt;
+        }
         return next;
       });
+    };
+    const schedule = (evt) => {
+      pending.set(evt.id, evt);
+      if (evt.status === 'done' || evt.status === 'error') {
+        flush();
+      } else if (!flushTimer) {
+        flushTimer = setTimeout(flush, 150);
+      }
     };
 
     es.addEventListener('progress', (e) => {
       try {
-        upsert({ ...JSON.parse(e.data), status: 'active' });
+        schedule({ ...JSON.parse(e.data), status: 'active' });
       } catch {
         // ignore malformed
       }
     });
     es.addEventListener('done', (e) => {
       try {
-        upsert({ ...JSON.parse(e.data), status: 'done' });
+        schedule({ ...JSON.parse(e.data), status: 'done' });
+        const id = JSON.parse(e.data).id;
         setTimeout(() => {
-          setOperations((prev) => prev.filter((op) => op.id !== JSON.parse(e.data).id));
+          setOperations((prev) => prev.filter((op) => op.id !== id));
         }, 2000);
       } catch {
         // ignore
@@ -177,13 +235,16 @@ export function AppProvider({ children }) {
     });
     es.addEventListener('error', (e) => {
       try {
-        upsert({ ...JSON.parse(e.data), status: 'error' });
+        schedule({ ...JSON.parse(e.data), status: 'error' });
       } catch {
         // ignore
       }
     });
 
-    return () => es.close();
+    return () => {
+      es.close();
+      if (flushTimer) clearTimeout(flushTimer);
+    };
   }, [auth && auth.logged_in]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const dismissOperation = useCallback((id) => {
@@ -206,25 +267,37 @@ export function AppProvider({ children }) {
   const uploadFiles = useCallback(
     async (filesToUpload) => {
       const dir = pathRef.current;
-      for (const file of filesToUpload) {
-        try {
-          await api.upload(dir, file);
-        } catch (e) {
-          setOperations((prev) => [
-            ...prev,
-            {
-              id: `local-${Date.now()}-${file.name}`,
-              kind: 'error',
-              filename: file.name,
-              error: e.message,
-              status: 'error',
-            },
-          ]);
+      invalidateCache(dir);
+      // Upload several files in parallel with a small concurrency limit.
+      const CONCURRENCY = 3;
+      let next = 0;
+      const workers = Array.from(
+        { length: Math.min(CONCURRENCY, filesToUpload.length) },
+        async () => {
+          while (next < filesToUpload.length) {
+            const file = filesToUpload[next];
+            next += 1;
+            try {
+              await api.upload(dir, file);
+            } catch (e) {
+              setOperations((prev) => [
+                ...prev,
+                {
+                  id: `local-${Date.now()}-${file.name}`,
+                  kind: 'error',
+                  filename: file.name,
+                  error: e.message,
+                  status: 'error',
+                },
+              ]);
+            }
+          }
         }
-      }
+      );
+      await Promise.all(workers);
       loadFiles(dir);
     },
-    [loadFiles]
+    [loadFiles, invalidateCache]
   );
 
   const createFolder = useCallback(
@@ -232,13 +305,15 @@ export function AppProvider({ children }) {
       const dir = pathRef.current;
       const full = dir === '/' ? `/${name}` : `${dir}/${name}`;
       await api.mkdir(full);
+      invalidateCache(dir);
       loadFiles(dir);
     },
-    [loadFiles]
+    [loadFiles, invalidateCache]
   );
 
   const deleteSelected = useCallback(async () => {
     const sel = selectedRef.current;
+    const dir = pathRef.current;
     for (const p of sel) {
       try {
         await api.remove(p);
@@ -247,15 +322,17 @@ export function AppProvider({ children }) {
       }
     }
     setSelected(new Set());
-    loadFiles(pathRef.current);
-  }, [loadFiles]);
+    invalidateCache(dir);
+    loadFiles(dir);
+  }, [loadFiles, invalidateCache]);
 
   const renameItem = useCallback(
     async (path, newName) => {
       await api.rename(path, newName);
+      invalidateCache(pathRef.current);
       loadFiles(pathRef.current);
     },
-    [loadFiles]
+    [loadFiles, invalidateCache]
   );
 
   const openUploadDialog = useCallback(() => {

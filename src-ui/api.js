@@ -57,12 +57,16 @@ export const api = {
     return res.blob();
   },
   upload(path, file) {
-    const form = new FormData();
-    form.append('file', file, file.name);
-    return request(`/api/files/upload?path=${encodeURIComponent(path)}`, {
-      method: 'POST',
-      body: form,
-    });
+    // Send the raw file body so the browser streams it and the backend
+    // forwards it to NextCloud without buffering the whole file in memory.
+    return request(
+      `/api/files/upload?path=${encodeURIComponent(path)}&name=${encodeURIComponent(file.name)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: file,
+      }
+    );
   },
   mkdir(path) {
     return request(`/api/files/mkdir?path=${encodeURIComponent(path)}`, {

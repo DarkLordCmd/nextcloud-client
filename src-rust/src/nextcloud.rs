@@ -1,7 +1,6 @@
 use std::io::BufRead;
 
 use axum::{Json, extract::{Query, State}};
-use bytes::Bytes;
 use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, percent_decode_str, percent_encode};
 use reqwest::{Method, StatusCode};
 use serde::Deserialize;
@@ -9,7 +8,7 @@ use serde_json::{Value, json};
 
 use crate::{
     auth::AuthState,
-    models::{ApiOk, AppError, FileItem, ProgressEvent},
+    models::{ApiOk, AppError, FileItem},
     server::AppState,
 };
 
@@ -553,99 +552,4 @@ pub async fn rename(
     let _ = resp;
     tracing::info!(from = %path, to = %dest_rel, "renamed");
     Ok(Json(ApiOk::new(json!({ "old_path": path, "new_path": dest_rel }))))
-}
-
-// ---------------------------------------------------------------------------
-// Upload helper shared with upload.rs
-// ---------------------------------------------------------------------------
-
-/// Stream `bytes` to NextCloud via PUT while publishing progress events.
-pub async fn upload_bytes(
-    state: &AppState,
-    auth: &AuthState,
-    dest_dir: &str,
-    name: &str,
-    bytes: Bytes,
-    id: &str,
-) -> Result<(), AppError> {
-    let rel = rel_path(dest_dir, name);
-    let url = dav_url(auth, &rel);
-    let total = bytes.len() as u64;
-
-    let owned_name = name.to_string();
-    let owned_id = id.to_string();
-    let tx = state.progress_tx.clone();
-    let _ = tx.send(ProgressEvent {
-        id: owned_id.clone(),
-        kind: "progress".to_string(),
-        filename: Some(owned_name.clone()),
-        bytes_done: Some(0),
-        bytes_total: Some(total),
-        percent: Some(0),
-        error: None,
-    });
-
-    let stream = futures::stream::unfold((0u64, bytes), move |(mut sent, mut buf)| {
-        let tx = tx.clone();
-        let file_name = owned_name.clone();
-        let op_id = owned_id.clone();
-        async move {
-            if buf.is_empty() {
-                return None;
-            }
-            let take = std::cmp::min(65_536, buf.len());
-            let chunk = buf.split_to(take);
-            sent += take as u64;
-            let percent = if total == 0 {
-                0
-            } else {
-                ((sent as f64 / total as f64) * 100.0) as u32
-            };
-            let _ = tx.send(ProgressEvent {
-                id: op_id,
-                kind: "progress".to_string(),
-                filename: Some(file_name),
-                bytes_done: Some(sent),
-                bytes_total: Some(total),
-                percent: Some(percent),
-                error: None,
-            });
-            Some((Ok::<_, std::io::Error>(chunk), (sent, buf)))
-        }
-    });
-    let body = reqwest::Body::wrap_stream(stream);
-
-    let resp = state
-        .http
-        .put(&url)
-        .basic_auth(&auth.username, Some(&auth.password))
-        .body(body)
-        .send()
-        .await?;
-    let status = resp.status();
-    if !status.is_success() {
-        let text = resp.text().await.unwrap_or_default();
-        let err = status_error(status, &text);
-        let _ = state.progress_tx.send(ProgressEvent {
-            id: id.to_string(),
-            kind: "error".to_string(),
-            filename: Some(name.to_string()),
-            bytes_done: None,
-            bytes_total: None,
-            percent: None,
-            error: Some(err.to_string()),
-        });
-        return Err(err);
-    }
-
-    let _ = state.progress_tx.send(ProgressEvent {
-        id: id.to_string(),
-        kind: "done".to_string(),
-        filename: Some(name.to_string()),
-        bytes_done: Some(total),
-        bytes_total: Some(total),
-        percent: Some(100),
-        error: None,
-    });
-    Ok(())
 }
