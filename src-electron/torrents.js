@@ -47,6 +47,16 @@ function findFreePort(start) {
 function startAria2() {
   aria2Port = findFreePort(6800);
   fs.mkdirSync(downloadsDir(), { recursive: true });
+  // Public trackers so single-tracker torrents still find peers. Without
+  // these, a torrent whose only tracker is dead/empty stays at 0 peers even
+  // though the same torrent downloads fine in qBittorrent (which bundles DHT).
+  const TRACKERS = [
+    'udp://tracker.opentrackr.org:1337/announce',
+    'udp://tracker.openbittorrent.com:6969/announce',
+    'udp://open.demonii.com:1337/announce',
+    'udp://exodus.desync.com:6969/announce',
+    'http://tracker.opentrackr.org:1337/announce',
+  ].join(',');
   aria2 = spawn(
     aria2Path(),
     [
@@ -58,6 +68,8 @@ function startAria2() {
       '--bt-save-metadata=false',
       '--console-log-level=warn',
       '--file-allocation=none',
+      '--enable-dht=true',
+      '--bt-tracker=' + TRACKERS,
     ],
     { stdio: ['ignore', 'pipe', 'pipe'] }
   );
