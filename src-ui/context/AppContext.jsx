@@ -318,8 +318,12 @@ export function AppProvider({ children }) {
       });
     };
     const schedule = (evt) => {
+      // First progress event for an id should be shown right away so the
+      // operation appears with a real starting percent instead of only the
+      // terminal 100% once the upload is already done.
+      const isNew = !pending.has(evt.id);
       pending.set(evt.id, evt);
-      if (evt.status === 'done' || evt.status === 'error') {
+      if (evt.status === 'done' || evt.status === 'error' || isNew) {
         flush();
       } else if (!flushTimer) {
         flushTimer = setTimeout(flush, 150);

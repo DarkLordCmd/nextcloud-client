@@ -455,8 +455,8 @@ where
 {
     let stream = Box::pin(stream);
     futures::stream::unfold(
-        (stream, 0u64, Instant::now()),
-        move |(mut stream, mut sent, mut last_emit)| {
+        (stream, 0u64, Instant::now(), false),
+        move |(mut stream, mut sent, mut last_emit, mut emitted)| {
             let tx = tx.clone();
             let id = id.clone();
             let name = name.clone();
@@ -474,8 +474,15 @@ where
                         } else {
                             ((sent as f64 / total as f64) * 100.0) as u32
                         };
-                        if now.duration_since(last_emit) >= PROGRESS_INTERVAL || percent == 100 {
+                        // Emit on the first chunk too, so even fast uploads
+                        // show an intermediate percent instead of jumping
+                        // straight to the final 100%.
+                        if !emitted
+                            || now.duration_since(last_emit) >= PROGRESS_INTERVAL
+                            || percent == 100
+                        {
                             last_emit = now;
+                            emitted = true;
                             let _ = tx.send(ProgressEvent {
                                 id: id.clone(),
                                 kind: "progress".to_string(),
@@ -486,9 +493,9 @@ where
                                 error: None,
                             });
                         }
-                        Some((Ok(chunk), (stream, sent, last_emit)))
+                        Some((Ok(chunk), (stream, sent, last_emit, emitted)))
                     }
-                    Some(Err(e)) => Some((Err(e), (stream, sent, last_emit))),
+                    Some(Err(e)) => Some((Err(e), (stream, sent, last_emit, emitted))),
                     None => None,
                 }
             }
