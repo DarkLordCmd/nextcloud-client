@@ -16,11 +16,14 @@ function initDragOutModule(opts) {
   getBackendPort = opts.backendPort || getBackendPort;
   getBackendToken = opts.backendToken || getBackendToken;
 
-  ipcMain.on('drag:start', (_e, paths) => {
+  ipcMain.on('drag:start', (event, paths) => {
     const win = getMainWindow();
     if (!win) return;
     if (!Array.isArray(paths) || paths.length === 0) return;
-    handleDrag(win, paths);
+    // Pass the exact webContents that originated the drag so startDrag()
+    // targets the live drag operation (event.sender, not win.webContents).
+    console.log('[dragout] drag:start', JSON.stringify(paths));
+    handleDrag(event.sender, paths);
   });
 }
 
@@ -59,9 +62,8 @@ function downloadToFile(url, dest, onProgress) {
   });
 }
 
-async function handleDrag(win, paths) {
+async function handleDrag(sender, paths) {
   const dir = path.join(app.getPath('temp'), `nextcloud-drag-${Date.now()}`);
-  const sender = win.webContents;
   const id = `drag-${Date.now()}`;
   try {
     await fs.promises.mkdir(dir, { recursive: true });
@@ -97,11 +99,14 @@ async function handleDrag(win, paths) {
         percent: 100,
       });
     }
-    // All files ready: hand them to the OS.
+    // All files ready: hand them to the OS. Use the originating webContents
+    // so the file drag replaces the still-live HTML5 drag operation.
     const icon = nativeImage.createFromDataURL(
       'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
     );
-    win.webContents.startDrag({ files: localFiles, icon });
+    console.log('[dragout] startDrag with files:', JSON.stringify(localFiles));
+    sender.startDrag({ files: localFiles, icon });
+    console.log('[dragout] startDrag called OK');
   } catch (err) {
     sender.send('download:progress', { id, name: '', error: err.message, bytes: 0, total: 0 });
     try {

@@ -163,12 +163,12 @@ export default function FileList() {
                 onDoubleClick={() => onRowDoubleClick(item)}
                 onContextMenu={(e) => onContextMenu(e, item)}
                 onDragStart={(e) => {
-                  // Must cancel the default HTML5 drag so the OS-level
-                  // startDrag() (called from the main process once the file
-                  // is downloaded) can take over the drag operation.
-                  e.preventDefault();
-                  // If this row is part of a multi-selection, drag them all;
-                  // otherwise just this item.
+                  // Do NOT preventDefault: canceling the default HTML5 drag
+                  // ends the drag operation, so a later startDrag() (after
+                  // the file finishes downloading) has no live drag to hand
+                  // over to the OS. Instead, seed the dataTransfer so the
+                  // drag stays active while the file downloads, then the main
+                  // process calls startDrag() to replace it with a file drag.
                   const multi = selected.has(item.path) && selected.size > 1;
                   const targets = multi
                     ? sorted
