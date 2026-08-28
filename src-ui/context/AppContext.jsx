@@ -178,22 +178,75 @@ export function AppProvider({ children }) {
     loadFiles(pathRef.current);
   }, [loadFiles]);
 
-  const login = useCallback(async (creds) => {
-    const data = await api.login(creds);
-    setAuth({ logged_in: true, server: data.server, username: data.username });
-  }, []);
+  const login = useCallback(
+    async (creds) => {
+      const data = await api.login(creds);
+      setAuth(data);
+      setCurrentPath('/');
+      invalidateCache('/');
+      loadFiles('/');
+      if (window.nextcloud && window.nextcloud.saveAccounts) {
+        window.nextcloud.saveAccounts(data.accounts, data.active).catch(() => {});
+      }
+    },
+    [invalidateCache, loadFiles]
+  );
 
   const logout = useCallback(async () => {
     try {
-      await api.logout();
+      const data = await api.logout();
+      setAuth(data);
+      if (data.accounts && data.accounts.length > 0) {
+        setCurrentPath('/');
+        invalidateCache('/');
+        loadFiles('/');
+      } else {
+        setFiles([]);
+        setSelected(new Set());
+        setOperations([]);
+      }
+      if (window.nextcloud && window.nextcloud.saveAccounts) {
+        window.nextcloud.saveAccounts(data.accounts, data.active).catch(() => {});
+      }
     } catch {
-      // ignore
+      setAuth({ logged_in: false, accounts: [], active: null });
     }
-    setAuth({ logged_in: false });
-    setFiles([]);
-    setSelected(new Set());
-    setOperations([]);
-  }, []);
+  }, [invalidateCache, loadFiles]);
+
+  const switchAccount = useCallback(
+    async (server, username) => {
+      const data = await api.switchAccount(server, username);
+      setAuth(data);
+      setCurrentPath('/');
+      setSelected(new Set());
+      invalidateCache('/');
+      loadFiles('/');
+      if (window.nextcloud && window.nextcloud.saveAccounts) {
+        window.nextcloud.saveAccounts(data.accounts, data.active).catch(() => {});
+      }
+    },
+    [invalidateCache, loadFiles]
+  );
+
+  const removeAccount = useCallback(
+    async (server, username) => {
+      const data = await api.removeAccount(server, username);
+      setAuth(data);
+      if (data.logged_in) {
+        setCurrentPath('/');
+        invalidateCache('/');
+        loadFiles('/');
+      } else {
+        setFiles([]);
+        setSelected(new Set());
+        setOperations([]);
+      }
+      if (window.nextcloud && window.nextcloud.saveAccounts) {
+        window.nextcloud.saveAccounts(data.accounts, data.active).catch(() => {});
+      }
+    },
+    [invalidateCache, loadFiles]
+  );
 
   // --- Selection helpers ---
   const toggleSelect = useCallback((path, multi = false) => {
@@ -533,6 +586,8 @@ export function AppProvider({ children }) {
       inputRef,
       login,
       logout,
+      switchAccount,
+      removeAccount,
       navigate,
       goUp,
       refresh,
@@ -572,6 +627,8 @@ export function AppProvider({ children }) {
       setLanguage,
       login,
       logout,
+      switchAccount,
+      removeAccount,
       navigate,
       goUp,
       refresh,

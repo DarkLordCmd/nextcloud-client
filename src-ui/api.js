@@ -61,6 +61,20 @@ export const api = {
   logout() {
     return request('/api/auth/logout', { method: 'POST' });
   },
+  switchAccount(server, username) {
+    return request('/api/auth/switch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ server, username }),
+    });
+  },
+  removeAccount(server, username) {
+    return request('/api/auth/account', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ server, username }),
+    });
+  },
   list(path) {
     return request(`/api/files?path=${encodeURIComponent(path)}`);
   },
