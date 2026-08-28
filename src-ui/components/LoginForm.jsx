@@ -10,7 +10,6 @@ export default function LoginForm() {
   const [server, setServer] = useState(() => localStorage.getItem(STORAGE_KEY) || '');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -19,12 +18,8 @@ export default function LoginForm() {
     setLoading(true);
     setError(null);
     try {
-      await login({ server, username, password, remember });
-      if (remember) {
-        localStorage.setItem(STORAGE_KEY, server);
-      } else {
-        localStorage.removeItem(STORAGE_KEY);
-      }
+      await login({ server, username, password });
+      if (server) localStorage.setItem(STORAGE_KEY, server);
     } catch (err) {
       setError(translateError(t, err));
     } finally {
@@ -85,16 +80,6 @@ export default function LoginForm() {
           required
           autoComplete="current-password"
         />
-
-        <label className="mb-4 flex items-center gap-2 text-sm text-nc-muted">
-          <input
-            type="checkbox"
-            checked={remember}
-            onChange={(e) => setRemember(e.target.checked)}
-            className="h-4 w-4 accent-nc-accent"
-          />
-          {t('login.rememberMe')}
-        </label>
 
         {error && (
           <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">

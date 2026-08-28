@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useI18n, translateError } from '../i18n';
+import AccountMenu from './AccountMenu';
 import SettingsModal from './SettingsModal';
 
 const BTN =
@@ -78,6 +79,7 @@ export default function Toolbar() {
       <button className={BTN} onClick={refresh} title={t('toolbar.refreshTitle')}>
         🔄
       </button>
+      <AccountMenu />
       <button className={BTN} onClick={() => setShowSettings(true)} title={t('toolbar.settingsTitle')}>
         ⚙️
       </button>
