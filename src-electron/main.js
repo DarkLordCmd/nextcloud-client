@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Menu, shell } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -178,6 +178,8 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // Remove the default File/Edit/View/Window/Help menu bar.
+  Menu.setApplicationMenu(null);
   initDownloadsModule(() => mainWindow);
   initUpdater(() => mainWindow);
 
