@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useI18n, translateError } from '../i18n';
 import AccountMenu from './AccountMenu';
+import TorrentsPanel from './TorrentsPanel';
 import SettingsModal from './SettingsModal';
 
 const BTN =
@@ -21,6 +22,7 @@ export default function Toolbar() {
   const { t } = useI18n();
   const [creating, setCreating] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showTorrents, setShowTorrents] = useState(false);
 
   const selectedItems = files.filter((f) => selected.has(f.path));
   const canDelete = selected.size > 0;
@@ -79,6 +81,9 @@ export default function Toolbar() {
       <button className={BTN} onClick={refresh} title={t('toolbar.refreshTitle')}>
         🔄
       </button>
+      <button className={BTN} onClick={() => setShowTorrents(true)} title="Torrents">
+        ⚡
+      </button>
       <AccountMenu />
       <button className={BTN} onClick={() => setShowSettings(true)} title={t('toolbar.settingsTitle')}>
         ⚙️
@@ -87,6 +92,7 @@ export default function Toolbar() {
         {selected.size > 0 ? t('toolbar.selected', { count: selected.size }) : currentPath}
       </span>
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {showTorrents && <TorrentsPanel onClose={() => setShowTorrents(false)} />}
     </div>
   );
 }
