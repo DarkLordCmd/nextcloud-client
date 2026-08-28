@@ -8,6 +8,7 @@ import React, {
   useState,
 } from 'react';
 import { api } from '../api';
+import { I18nProvider } from '../i18n';
 
 const AppContext = createContext(null);
 
@@ -28,6 +29,7 @@ export function AppProvider({ children }) {
   const [treeNodes, setTreeNodes] = useState({ '/': [] });
   const [preview, setPreview] = useState(null);
   const [settings, setSettings] = useState(null);
+  const [language, setLanguageState] = useState('en');
 
   const pathRef = useRef('/');
   const filesRef = useRef([]);
@@ -67,7 +69,10 @@ export function AppProvider({ children }) {
     if (window.nextcloud && window.nextcloud.getSettings) {
       window.nextcloud
         .getSettings()
-        .then((s) => setSettings(s))
+        .then((s) => {
+          setSettings(s);
+          if (s.language === 'en' || s.language === 'ru') setLanguageState(s.language);
+        })
         .catch(() => {});
     }
   }, []);
@@ -86,6 +91,15 @@ export function AppProvider({ children }) {
     setSettings(next);
     if (partial.uploadSpeedLimit !== undefined) {
       api.setUploadLimit(next.uploadSpeedLimit || 0).catch(() => {});
+    }
+  }, []);
+
+  const setLanguage = useCallback(async (lang) => {
+    if (lang !== 'en' && lang !== 'ru') return;
+    setLanguageState(lang);
+    if (document.documentElement) document.documentElement.lang = lang;
+    if (window.nextcloud && window.nextcloud.updateSettings) {
+      await window.nextcloud.updateSettings({ language: lang }).catch(() => {});
     }
   }, []);
 
@@ -511,6 +525,8 @@ export function AppProvider({ children }) {
       preview,
       settings,
       updateSettings,
+      language,
+      setLanguage,
       setError,
       inputRef,
       login,
@@ -550,6 +566,8 @@ export function AppProvider({ children }) {
       preview,
       settings,
       updateSettings,
+      language,
+      setLanguage,
       login,
       logout,
       navigate,
@@ -574,5 +592,9 @@ export function AppProvider({ children }) {
     ]
   );
 
-  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+  return (
+    <AppContext.Provider value={value}>
+      <I18nProvider language={language}>{children}</I18nProvider>
+    </AppContext.Provider>
+  );
 }

@@ -41,6 +41,7 @@ function defaultSettings() {
     askDownloadLocation: true,
     uploadSpeedLimit: 0,
     downloadSpeedLimit: 0,
+    language: 'en',
   };
 }
 function loadSettings() {
