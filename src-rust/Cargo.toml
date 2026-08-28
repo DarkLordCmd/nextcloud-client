@@ -25,6 +25,8 @@ bytes = "1"
 httpdate = "1"
 percent-encoding = "2"
 getrandom = "0.2"
+zip = "2"
+tokio-util = { version = "0.7", features = ["io"] }
 
 [profile.release]
 lto = true
