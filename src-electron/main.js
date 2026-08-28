@@ -5,6 +5,7 @@ const fs = require('fs');
 const http = require('http');
 const { initDownloadsModule } = require('./downloads');
 const { initUpdater, checkForUpdates } = require('./updater');
+const { initDragOutModule, cleanupDragDirs } = require('./dragout');
 
 let rustProcess = null;
 let backendPort = 7842;
@@ -209,6 +210,11 @@ app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
   initDownloadsModule(() => mainWindow);
   initUpdater(() => mainWindow);
+  initDragOutModule({
+    getMainWindow: () => mainWindow,
+    backendPort: () => backendPort,
+    backendToken: () => backendToken,
+  });
 
   ipcMain.handle('updates:check', () => checkForUpdates());
 
@@ -233,6 +239,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  cleanupDragDirs();
   killBackend();
 });
 

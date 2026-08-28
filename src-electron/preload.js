@@ -32,4 +32,6 @@ contextBridge.exposeInMainWorld('nextcloud', {
   // Accounts
   loadAccounts: () => ipcRenderer.invoke('accounts:load'),
   saveAccounts: (accounts, active) => ipcRenderer.invoke('accounts:save', { accounts, active }),
+  // Drag-out of files into the OS
+  startDrag: (paths) => ipcRenderer.send('drag:start', paths),
 });
