@@ -1,6 +1,7 @@
+use std::sync::atomic::Ordering;
+
 use axum::{Json, extract::State};
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
 
 use crate::{
     models::{ApiOk, AppError},
@@ -8,13 +9,12 @@ use crate::{
     server::AppState,
 };
 
-/// Saved connection credentials. Stored in-memory only.
+/// Saved connection credentials. Stored in memory and persisted to disk by Electron.
 #[derive(Debug, Clone)]
 pub struct AuthState {
     pub server: String,
     pub username: String,
     pub password: String,
-    pub remember: bool,
 }
 
 impl AuthState {
@@ -29,10 +29,11 @@ impl AuthState {
     }
 }
 
-/// Read the current credentials or return `NotAuthenticated`.
+/// Active account, or `NotAuthenticated` when there is none.
 pub async fn require_auth(state: &AppState) -> Result<AuthState, AppError> {
-    let guard = state.auth.read().await;
-    guard.clone().ok_or(AppError::NotAuthenticated)
+    let idx = state.active.load(Ordering::SeqCst);
+    let guard = state.accounts.read().await;
+    guard.get(idx).cloned().ok_or(AppError::NotAuthenticated)
 }
 
 #[derive(Deserialize)]
@@ -40,22 +41,53 @@ pub struct LoginRequest {
     pub server: String,
     pub username: String,
     pub password: String,
-    #[serde(default)]
-    pub remember: bool,
 }
 
 #[derive(Serialize)]
-pub struct LoginResponse {
+pub struct AccountMeta {
     pub server: String,
     pub username: String,
 }
 
-/// `POST /api/auth/login` — validate the connection against NextCloud,
-/// then persist the credentials in memory.
+#[derive(Serialize)]
+pub struct AccountState {
+    pub logged_in: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub server: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
+    pub accounts: Vec<AccountMeta>,
+    pub active: Option<AccountMeta>,
+}
+
+/// Build the current account-state response (list + active, no passwords).
+async fn account_state(state: &AppState) -> AccountState {
+    let guard = state.accounts.read().await;
+    let idx = state.active.load(Ordering::SeqCst);
+    let active = guard.get(idx).map(|a| AccountMeta {
+        server: a.server.clone(),
+        username: a.username.clone(),
+    });
+    AccountState {
+        logged_in: active.is_some(),
+        server: active.as_ref().map(|a| a.server.clone()),
+        username: active.as_ref().map(|a| a.username.clone()),
+        accounts: guard
+            .iter()
+            .map(|a| AccountMeta {
+                server: a.server.clone(),
+                username: a.username.clone(),
+            })
+            .collect(),
+        active,
+    }
+}
+
+/// `POST /api/auth/login` — validate, upsert, activate.
 pub async fn login(
     State(state): State<AppState>,
     Json(req): Json<LoginRequest>,
-) -> Result<Json<ApiOk<LoginResponse>>, AppError> {
+) -> Result<Json<ApiOk<AccountState>>, AppError> {
     if req.username.trim().is_empty() {
         return Err(AppError::BadRequest("Username is required.".into()));
     }
@@ -63,38 +95,126 @@ pub async fn login(
         server: normalize_server(&req.server)?,
         username: req.username.trim().to_string(),
         password: req.password,
-        remember: req.remember,
     };
 
     nextcloud::verify_auth(&state.http, &auth).await?;
 
-    *state.auth.write().await = Some(auth.clone());
+    let mut guard = state.accounts.write().await;
+    let mut idx = guard
+        .iter()
+        .position(|a| a.server == auth.server && a.username == auth.username);
+    if let Some(i) = idx {
+        guard[i] = auth.clone();
+    } else {
+        guard.push(auth.clone());
+        idx = Some(guard.len() - 1);
+    }
+    state.active.store(idx.unwrap(), Ordering::SeqCst);
+    drop(guard);
+
     tracing::info!(server = %auth.server, username = %auth.username, "login success");
-    Ok(Json(ApiOk::new(LoginResponse {
-        server: auth.server,
-        username: auth.username,
-    })))
+    Ok(Json(ApiOk::new(account_state(&state).await)))
 }
 
-/// `GET /api/auth/status` — report whether credentials are present.
-pub async fn status(State(state): State<AppState>) -> Result<Json<ApiOk<Value>>, AppError> {
-    let logged_in = state.auth.read().await.as_ref().map(|a| {
-        json!({
-            "logged_in": true,
-            "server": a.server,
-            "username": a.username,
+/// `GET /api/auth/status` — account list + active (no passwords).
+pub async fn status(State(state): State<AppState>) -> Result<Json<ApiOk<AccountState>>, AppError> {
+    Ok(Json(ApiOk::new(account_state(&state).await)))
+}
+
+/// `POST /api/auth/switch { server, username }` — activate an existing account.
+#[derive(Deserialize)]
+pub struct SwitchRequest {
+    pub server: String,
+    pub username: String,
+}
+
+pub async fn switch_account(
+    State(state): State<AppState>,
+    Json(req): Json<SwitchRequest>,
+) -> Result<Json<ApiOk<AccountState>>, AppError> {
+    let guard = state.accounts.read().await;
+    let idx = guard
+        .iter()
+        .position(|a| a.server == req.server && a.username == req.username)
+        .ok_or_else(|| AppError::BadRequest("Account not found.".into()))?;
+    drop(guard);
+    state.active.store(idx, Ordering::SeqCst);
+    tracing::info!(server = %req.server, username = %req.username, "switch account");
+    Ok(Json(ApiOk::new(account_state(&state).await)))
+}
+
+/// `DELETE /api/auth/account { server, username }` — remove an account.
+#[derive(Deserialize)]
+pub struct DeleteAccountRequest {
+    pub server: String,
+    pub username: String,
+}
+
+pub async fn delete_account(
+    State(state): State<AppState>,
+    Json(req): Json<DeleteAccountRequest>,
+) -> Result<Json<ApiOk<AccountState>>, AppError> {
+    let mut guard = state.accounts.write().await;
+    let idx = guard
+        .iter()
+        .position(|a| a.server == req.server && a.username == req.username)
+        .ok_or_else(|| AppError::BadRequest("Account not found.".into()))?;
+    guard.remove(idx);
+    let active = state.active.load(Ordering::SeqCst);
+    if active == idx {
+        state.active.store(if guard.is_empty() { usize::MAX } else { 0 }, Ordering::SeqCst);
+    } else if active > idx {
+        state.active.store(active - 1, Ordering::SeqCst);
+    }
+    drop(guard);
+    tracing::info!(server = %req.server, username = %req.username, "account deleted");
+    Ok(Json(ApiOk::new(account_state(&state).await)))
+}
+
+/// `POST /api/auth/import` — replace the account list (called at startup by Electron).
+#[derive(Deserialize)]
+pub struct ImportRequest {
+    pub accounts: Vec<LoginRequest>,
+}
+
+pub async fn import_accounts(
+    State(state): State<AppState>,
+    Json(req): Json<ImportRequest>,
+) -> Result<Json<ApiOk<AccountState>>, AppError> {
+    let count = req.accounts.len();
+    let accounts = req
+        .accounts
+        .into_iter()
+        .map(|a| AuthState {
+            server: normalize_server(&a.server).unwrap_or_else(|_| a.server),
+            username: a.username.trim().to_string(),
+            password: a.password,
         })
-    });
-    Ok(Json(ApiOk::new(
-        logged_in.unwrap_or(json!({ "logged_in": false })),
-    )))
+        .collect::<Vec<_>>();
+    *state.accounts.write().await = accounts;
+    state.active.store(
+        if count == 0 {
+            usize::MAX
+        } else {
+            0
+        },
+        Ordering::SeqCst,
+    );
+    tracing::info!(count, "accounts imported");
+    Ok(Json(ApiOk::new(account_state(&state).await)))
 }
 
-/// `POST /api/auth/logout` — clear the in-memory credentials.
-pub async fn logout(State(state): State<AppState>) -> Result<Json<ApiOk<Value>>, AppError> {
-    *state.auth.write().await = None;
+/// `POST /api/auth/logout` — remove the active account (Telegram-style Log out).
+pub async fn logout(State(state): State<AppState>) -> Result<Json<ApiOk<AccountState>>, AppError> {
+    let idx = state.active.load(Ordering::SeqCst);
+    let mut guard = state.accounts.write().await;
+    if idx < guard.len() {
+        guard.remove(idx);
+    }
+    state.active.store(if guard.is_empty() { usize::MAX } else { 0 }, Ordering::SeqCst);
+    drop(guard);
     tracing::info!("logout");
-    Ok(Json(ApiOk::new(json!({ "logged_in": false }))))
+    Ok(Json(ApiOk::new(account_state(&state).await)))
 }
 
 fn normalize_server(input: &str) -> Result<String, AppError> {

@@ -22,8 +22,10 @@ use crate::{
 /// Shared application state passed to every handler via `State`.
 #[derive(Clone)]
 pub struct AppState {
-    /// In-memory credentials. `None` means the user is not logged in.
-    pub auth: Arc<RwLock<Option<AuthState>>>,
+    /// All saved accounts. In-memory copy; Electron persists the list on disk.
+    pub accounts: Arc<RwLock<Vec<AuthState>>>,
+    /// Index of the active account in `accounts`; `usize::MAX` when none.
+    pub active: Arc<std::sync::atomic::AtomicUsize>,
     /// Shared HTTP client used for all WebDAV / OCS requests.
     pub http: reqwest::Client,
     /// Broadcast channel that fans progress events out to SSE subscribers.
@@ -41,7 +43,8 @@ pub struct AppState {
 impl AppState {
     pub fn new(token: String) -> Self {
         Self {
-            auth: Arc::new(RwLock::new(None)),
+            accounts: Arc::new(RwLock::new(Vec::new())),
+            active: Arc::new(std::sync::atomic::AtomicUsize::new(usize::MAX)),
             http: build_http_client(),
             progress_tx: broadcast::channel(256).0,
             next_id: Arc::new(std::sync::atomic::AtomicU64::new(1)),
@@ -124,6 +127,9 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/auth/login", post(auth::login))
         .route("/api/auth/status", get(auth::status))
         .route("/api/auth/logout", post(auth::logout))
+        .route("/api/auth/switch", post(auth::switch_account))
+        .route("/api/auth/account", axum::routing::delete(auth::delete_account))
+        .route("/api/auth/import", post(auth::import_accounts))
         .route(
             "/api/files",
             get(nextcloud::list_files).delete(nextcloud::delete_file),
@@ -142,11 +148,13 @@ pub fn build_router(state: AppState) -> Router {
 }
 
 async fn health(State(state): State<AppState>) -> impl IntoResponse {
+    let active_idx = state.active.load(std::sync::atomic::Ordering::SeqCst);
+    let logged_in = active_idx != usize::MAX && !state.accounts.read().await.is_empty();
     Json(json!({
         "success": true,
         "data": {
             "status": "ok",
-            "logged_in": state.auth.read().await.is_some(),
+            "logged_in": logged_in,
         }
     }))
 }
