@@ -125,10 +125,12 @@ function onBackendReady() {
   }
 }
 
-// Load saved accounts from settings.json and push them into the backend.
+// Load saved accounts from settings.json and push them into the backend,
+// restoring the previously active account.
 function importAccounts() {
   const { loadSettings } = require('./downloads');
-  const accounts = (loadSettings().accounts || []).filter(
+  const saved = loadSettings();
+  const accounts = (saved.accounts || []).filter(
     (a) => a && a.server && a.username && a.password
   );
   const body = JSON.stringify({ accounts });
@@ -144,9 +146,38 @@ function importAccounts() {
         Authorization: backendToken ? `Bearer ${backendToken}` : '',
       },
     },
-    (res) => res.resume()
+    (res) => {
+      res.resume();
+      // After importing, restore the last active account (if saved).
+      const active = saved.activeAccount;
+      if (active && active.server && active.username) {
+        switchToAccount(active.server, active.username);
+      }
+    }
   );
   req.on('error', (e) => console.error('[import-accounts]', e.message));
+  req.write(body);
+  req.end();
+}
+
+// Ask the backend to make the given account active.
+function switchToAccount(server, username) {
+  const body = JSON.stringify({ server, username });
+  const req = http.request(
+    {
+      host: '127.0.0.1',
+      port: backendPort,
+      path: '/api/auth/switch',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+        Authorization: backendToken ? `Bearer ${backendToken}` : '',
+      },
+    },
+    (res) => res.resume()
+  );
+  req.on('error', (e) => console.error('[switch-account]', e.message));
   req.write(body);
   req.end();
 }

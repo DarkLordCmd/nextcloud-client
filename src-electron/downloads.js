@@ -25,10 +25,31 @@ function initDownloadsModule(windowGetter) {
     return res.canceled || !res.filePaths || !res.filePaths[0] ? null : res.filePaths[0];
   });
   ipcMain.handle('download:file', (e, { url, name }) => downloadFileToDisk(e.sender, url, name));
-  ipcMain.handle('accounts:load', () => loadSettings().accounts || []);
+  ipcMain.handle('accounts:load', () => ({
+    accounts: loadSettings().accounts || [],
+    activeAccount: loadSettings().activeAccount || null,
+  }));
+  // Persist accounts without losing passwords the renderer doesn't know.
+  // The renderer only carries passwords for the account it just logged into;
+  // existing saved passwords are merged back in by (server, username).
   ipcMain.handle('accounts:save', (_e, { accounts, active }) => {
     const s = loadSettings();
-    s.accounts = Array.isArray(accounts) ? accounts : [];
+    const saved = (s.accounts || []).filter((a) => a && a.server && a.username);
+    const next = (Array.isArray(accounts) ? accounts : []).map((a) => {
+      if (!a || !a.server || !a.username) return null;
+      const prev = saved.find(
+        (x) => x.server === a.server && x.username === a.username && x.password
+      );
+      return {
+        server: a.server,
+        username: a.username,
+        password: a.password || (prev ? prev.password : ''),
+      };
+    }).filter(Boolean);
+    s.accounts = next;
+    if (active && active.server && active.username) {
+      s.activeAccount = { server: active.server, username: active.username };
+    }
     saveSettings();
     return s.accounts;
   });
@@ -50,6 +71,7 @@ function defaultSettings() {
     downloadSpeedLimit: 0,
     language: 'en',
     accounts: [],
+    activeAccount: null,
   };
 }
 function loadSettings() {

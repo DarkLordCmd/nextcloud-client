@@ -185,8 +185,16 @@ export function AppProvider({ children }) {
       setCurrentPath('/');
       invalidateCache('/');
       loadFiles('/');
+      // Persist accounts to disk. The backend returns accounts without
+      // passwords, so attach the just-entered password to the active account
+      // here; the main process keeps existing passwords for the others.
       if (window.nextcloud && window.nextcloud.saveAccounts) {
-        window.nextcloud.saveAccounts(data.accounts, data.active).catch(() => {});
+        const accounts = (data.accounts || []).map((a) =>
+          a.server === data.server && a.username === data.username
+            ? { ...a, password: creds.password }
+            : a
+        );
+        window.nextcloud.saveAccounts(accounts, data.active).catch(() => {});
       }
     },
     [invalidateCache, loadFiles]
