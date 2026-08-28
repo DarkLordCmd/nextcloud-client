@@ -90,7 +90,14 @@ async function checkForUpdates() {
   try {
     const result = await autoUpdater.checkForUpdates();
     if (result && result.updateInfo) {
-      return { status: 'available', version: result.updateInfo.version };
+      const available = result.updateInfo.version;
+      const current = app.getVersion();
+      // updateInfo is always returned (even when already up to date), so only
+      // report "available" when the fetched version is actually newer.
+      if (available && available !== current) {
+        return { status: 'available', version: available };
+      }
+      return { status: 'none' };
     }
     return { status: 'none' };
   } catch (e) {

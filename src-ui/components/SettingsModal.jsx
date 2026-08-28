@@ -139,7 +139,7 @@ export default function SettingsModal({ onClose }) {
             {updateStatus === 'checking' && <span className="text-nc-muted">Checking for updates…</span>}
             {updateStatus === 'none' && <span className="text-green-300">You're up to date.</span>}
             {updateStatus === 'available' && (
-              <span className="text-nc-accent">Update available — downloading…</span>
+              <span className="text-nc-accent">Update available</span>
             )}
             {updateStatus === 'downloading' && (
               <span className="text-nc-accent">Downloading update…</span>
