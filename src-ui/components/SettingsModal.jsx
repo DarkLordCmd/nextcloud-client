@@ -12,6 +12,14 @@ export default function SettingsModal({ onClose }) {
   const [ask, setAsk] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [updateStatus, setUpdateStatus] = useState('idle'); // idle|checking|none|available|downloading|error
+
+  useEffect(() => {
+    if (window.nextcloud && window.nextcloud.onUpdateStatus) {
+      return window.nextcloud.onUpdateStatus((s) => setUpdateStatus(s.status || 'idle'));
+    }
+    return undefined;
+  }, []);
 
   useEffect(() => {
     if (settings) {
@@ -28,6 +36,12 @@ export default function SettingsModal({ onClose }) {
     if (!window.nextcloud || !window.nextcloud.chooseDownloadDir) return;
     const dir = await window.nextcloud.chooseDownloadDir();
     if (dir) setDownloadDir(dir);
+  };
+
+  const handleCheckUpdates = async () => {
+    setUpdateStatus('checking');
+    const res = await window.nextcloud.checkForUpdates();
+    if (res) setUpdateStatus(res.status || 'none');
   };
 
   const handleSave = async () => {
@@ -120,22 +134,45 @@ export default function SettingsModal({ onClose }) {
           </div>
         )}
 
-        <div className="mt-6 flex justify-end gap-2">
-          <button
-            type="button"
-            className="rounded-lg border border-nc-border px-4 py-2 text-sm text-nc-text hover:bg-nc-hover"
-            onClick={onClose}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="rounded-lg bg-nc-accent px-4 py-2 text-sm text-white hover:bg-nc-accenthover disabled:opacity-60"
-            onClick={handleSave}
-            disabled={saving}
-          >
-            {saving ? 'Saving…' : 'Save'}
-          </button>
+        <div className="mt-6 flex items-center justify-between">
+          <div className="text-sm">
+            {updateStatus === 'checking' && <span className="text-nc-muted">Checking for updates…</span>}
+            {updateStatus === 'none' && <span className="text-green-300">You're up to date.</span>}
+            {updateStatus === 'available' && (
+              <span className="text-nc-accent">Update available — downloading…</span>
+            )}
+            {updateStatus === 'downloading' && (
+              <span className="text-nc-accent">Downloading update…</span>
+            )}
+            {updateStatus === 'error' && (
+              <span className="text-red-300">Could not check for updates.</span>
+            )}
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              className="rounded-lg border border-nc-border px-4 py-2 text-sm text-nc-text hover:bg-nc-hover"
+              onClick={handleCheckUpdates}
+              disabled={updateStatus === 'checking' || updateStatus === 'downloading'}
+            >
+              Check for updates
+            </button>
+            <button
+              type="button"
+              className="rounded-lg border border-nc-border px-4 py-2 text-sm text-nc-text hover:bg-nc-hover"
+              onClick={onClose}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="rounded-lg bg-nc-accent px-4 py-2 text-sm text-white hover:bg-nc-accenthover disabled:opacity-60"
+              onClick={handleSave}
+              disabled={saving}
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

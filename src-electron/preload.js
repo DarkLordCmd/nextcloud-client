@@ -22,4 +22,11 @@ contextBridge.exposeInMainWorld('nextcloud', {
     ipcRenderer.on('download:progress', listener);
     return () => ipcRenderer.removeListener('download:progress', listener);
   },
+  // Updates
+  checkForUpdates: () => ipcRenderer.invoke('updates:check'),
+  onUpdateStatus: (callback) => {
+    const listener = (_e, data) => callback(data);
+    ipcRenderer.on('updates:status', listener);
+    return () => ipcRenderer.removeListener('updates:status', listener);
+  },
 });

@@ -3,6 +3,11 @@ productName: NextCloud Client
 directories:
   output: dist
 
+publish:
+  - provider: github
+    owner: DarkLordCmd
+    repo: nextcloud-client
+
 files:
   - src-electron/**
   - src-ui/dist/**

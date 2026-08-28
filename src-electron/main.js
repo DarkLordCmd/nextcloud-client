@@ -1,9 +1,10 @@
-const { app, BrowserWindow, dialog, shell } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const { initDownloadsModule } = require('./downloads');
+const { initUpdater, checkForUpdates } = require('./updater');
 
 let rustProcess = null;
 let backendPort = 7842;
@@ -178,10 +179,21 @@ function createWindow() {
 
 app.whenReady().then(() => {
   initDownloadsModule(() => mainWindow);
+  initUpdater(() => mainWindow);
+
+  ipcMain.handle('updates:check', () => checkForUpdates());
+
   startBackend();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+
+  // Check for updates shortly after startup (packaged builds only).
+  setTimeout(() => {
+    if (app.isPackaged && mainWindow) {
+      checkForUpdates();
+    }
+  }, 6000);
 });
 
 // 5. On close, kill the Rust process.
