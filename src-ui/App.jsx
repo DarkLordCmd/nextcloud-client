@@ -1,5 +1,6 @@
 import React from 'react';
 import { AppProvider, useApp } from './context/AppContext';
+import { useI18n } from './i18n';
 import LoginForm from './components/LoginForm';
 import FileExplorer from './components/FileExplorer';
 import FileList from './components/FileList';
@@ -10,6 +11,7 @@ import PreviewPanel from './components/PreviewPanel';
 
 function MainScreen() {
   const { inputRef, dragOver, uploadFiles, preview, closePreview } = useApp();
+  const { t } = useI18n();
 
   return (
     <div className="relative flex h-full flex-col">
@@ -44,7 +46,7 @@ function MainScreen() {
         <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-nc-accent/20 backdrop-blur-sm">
           <div className="rounded-lg border-2 border-dashed border-nc-accent bg-nc-panel px-10 py-8 text-center">
             <div className="text-4xl">📤</div>
-            <div className="mt-2 text-lg font-semibold">Drop to upload</div>
+            <div className="mt-2 text-lg font-semibold">{t('app.dropToUpload')}</div>
           </div>
         </div>
       )}

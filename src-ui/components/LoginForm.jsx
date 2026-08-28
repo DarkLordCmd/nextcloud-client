@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useI18n, translateError } from '../i18n';
 
 const STORAGE_KEY = 'nextcloud_client_last_server';
 
 export default function LoginForm() {
-  const { login } = useApp();
+  const { login, language, setLanguage } = useApp();
+  const { t } = useI18n();
   const [server, setServer] = useState(() => localStorage.getItem(STORAGE_KEY) || '');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -24,7 +26,7 @@ export default function LoginForm() {
         localStorage.removeItem(STORAGE_KEY);
       }
     } catch (err) {
-      setError(err.message);
+      setError(translateError(t, err));
     } finally {
       setLoading(false);
     }
@@ -34,15 +36,25 @@ export default function LoginForm() {
     <div className="flex h-full items-center justify-center bg-nc-bg">
       <form
         onSubmit={handleSubmit}
-        className="w-96 rounded-xl border border-nc-border bg-nc-panel p-8 shadow-2xl"
+        className="relative w-96 rounded-xl border border-nc-border bg-nc-panel p-8 shadow-2xl"
       >
+        <select
+          value={language}
+          onChange={(e) => setLanguage(e.target.value)}
+          className="absolute right-4 top-4 rounded border border-nc-border bg-nc-bg px-2 py-1 text-xs text-nc-muted"
+          aria-label={t('language')}
+        >
+          <option value="en">English</option>
+          <option value="ru">Русский</option>
+        </select>
+
         <div className="mb-6 text-center">
           <div className="text-3xl">☁️</div>
           <h1 className="mt-2 text-xl font-semibold text-nc-text">NextCloud Client</h1>
-          <p className="text-sm text-nc-muted">Connect to your cloud storage</p>
+          <p className="text-sm text-nc-muted">{t('login.subtitle')}</p>
         </div>
 
-        <label className="mb-1 block text-sm text-nc-muted">Server URL</label>
+        <label className="mb-1 block text-sm text-nc-muted">{t('login.serverUrl')}</label>
         <input
           type="text"
           value={server}
@@ -52,7 +64,7 @@ export default function LoginForm() {
           required
         />
 
-        <label className="mb-1 block text-sm text-nc-muted">Username</label>
+        <label className="mb-1 block text-sm text-nc-muted">{t('login.username')}</label>
         <input
           type="text"
           value={username}
@@ -63,7 +75,7 @@ export default function LoginForm() {
           autoComplete="username"
         />
 
-        <label className="mb-1 block text-sm text-nc-muted">Password</label>
+        <label className="mb-1 block text-sm text-nc-muted">{t('login.password')}</label>
         <input
           type="password"
           value={password}
@@ -81,7 +93,7 @@ export default function LoginForm() {
             onChange={(e) => setRemember(e.target.checked)}
             className="h-4 w-4 accent-nc-accent"
           />
-          Remember me
+          {t('login.rememberMe')}
         </label>
 
         {error && (
@@ -98,7 +110,7 @@ export default function LoginForm() {
           {loading && (
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
           )}
-          {loading ? 'Connecting…' : 'Connect'}
+          {loading ? t('login.connecting') : t('login.connect')}
         </button>
       </form>
     </div>

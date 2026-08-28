@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useI18n, translateError } from '../i18n';
 import SettingsModal from './SettingsModal';
 
 const BTN =
@@ -16,6 +17,7 @@ export default function Toolbar() {
     files,
     currentPath,
   } = useApp();
+  const { t } = useI18n();
   const [creating, setCreating] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
@@ -24,13 +26,13 @@ export default function Toolbar() {
   const canDownload = selectedItems.some((f) => !f.is_directory);
 
   const handleNewFolder = async () => {
-    const name = window.prompt('Folder name:');
+    const name = window.prompt(t('toolbar.folderName'));
     if (!name || !name.trim()) return;
     setCreating(true);
     try {
       await createFolder(name.trim());
     } catch (e) {
-      window.alert(e.message);
+      window.alert(translateError(t, e));
     } finally {
       setCreating(false);
     }
@@ -39,13 +41,13 @@ export default function Toolbar() {
   const handleDelete = async () => {
     const names = selectedItems.map((f) => f.name);
     const ok = window.confirm(
-      `Delete ${names.length} item(s)?\n\n${names.join('\n')}`
+      t('toolbar.deleteConfirm', { count: names.length, names: names.join('\n') })
     );
     if (!ok) return;
     try {
       await deleteSelected();
     } catch (e) {
-      window.alert(e.message);
+      window.alert(translateError(t, e));
     }
   };
 
@@ -55,32 +57,32 @@ export default function Toolbar() {
     try {
       await downloadMany(filePaths);
     } catch (e) {
-      window.alert(e.message);
+      window.alert(translateError(t, e));
     }
   };
 
   return (
     <div className="flex items-center gap-2">
-      <button className={BTN} onClick={openUploadDialog} title="Upload (Ctrl+U)">
-        ⬆ Upload
+      <button className={BTN} onClick={openUploadDialog} title={t('toolbar.uploadTitle')}>
+        ⬆ {t('toolbar.upload')}
       </button>
       <button className={BTN} onClick={handleNewFolder} disabled={creating}>
-        📁 New Folder
+        📁 {t('toolbar.newFolder')}
       </button>
-      <button className={BTN} onClick={handleDownload} disabled={!canDownload} title="Download">
-        ⬇ Download
+      <button className={BTN} onClick={handleDownload} disabled={!canDownload} title={t('toolbar.downloadTitle')}>
+        ⬇ {t('toolbar.download')}
       </button>
-      <button className={BTN} onClick={handleDelete} disabled={!canDelete} title="Delete (Del)">
-        🗑 Delete
+      <button className={BTN} onClick={handleDelete} disabled={!canDelete} title={t('toolbar.deleteTitle')}>
+        🗑 {t('toolbar.delete')}
       </button>
-      <button className={BTN} onClick={refresh} title="Refresh (F5)">
+      <button className={BTN} onClick={refresh} title={t('toolbar.refreshTitle')}>
         🔄
       </button>
-      <button className={BTN} onClick={() => setShowSettings(true)} title="Settings">
+      <button className={BTN} onClick={() => setShowSettings(true)} title={t('toolbar.settingsTitle')}>
         ⚙️
       </button>
       <span className="ml-2 text-xs text-nc-muted">
-        {selected.size > 0 ? `${selected.size} selected` : currentPath}
+        {selected.size > 0 ? t('toolbar.selected', { count: selected.size }) : currentPath}
       </span>
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
     </div>

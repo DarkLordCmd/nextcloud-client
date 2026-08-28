@@ -39,7 +39,10 @@ async function request(path, options = {}) {
     body = { success: false, error: text || `HTTP ${res.status}` };
   }
   if (!res.ok || body.success === false) {
-    throw new Error(body.error || `HTTP ${res.status}`);
+    const err = new Error(body.error || `HTTP ${res.status}`);
+    err.code = body.error_code || null;
+    err.status = res.status;
+    throw err;
   }
   return body.data;
 }

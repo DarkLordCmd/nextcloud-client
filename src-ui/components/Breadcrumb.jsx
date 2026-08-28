@@ -1,8 +1,10 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
+import { useI18n } from '../i18n';
 
 export default function Breadcrumb() {
   const { currentPath, navigate } = useApp();
+  const { t } = useI18n();
 
   const segments = currentPath.split('/').filter(Boolean);
 
@@ -11,7 +13,7 @@ export default function Breadcrumb() {
       <button
         onClick={() => navigate('/')}
         className="rounded px-2 py-1 font-medium hover:bg-nc-hover"
-        title="Cloud root"
+        title={t('breadcrumb.rootTitle')}
       >
         ☁️
       </button>

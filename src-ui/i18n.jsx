@@ -177,19 +177,22 @@ const messages = {
 
 const I18nContext = createContext({ language: 'en', t: (k) => k });
 
+export function createTranslator(language) {
+  const dict = messages[language] || messages.en;
+  return (key, vars) => {
+    let s = dict[key] ?? messages.en[key] ?? key;
+    if (vars) {
+      for (const [k, v] of Object.entries(vars)) {
+        s = s.split(`{${k}}`).join(v);
+      }
+    }
+    return s;
+  };
+}
+
 export function I18nProvider({ language, children }) {
   const value = useMemo(() => {
-    const dict = messages[language] || messages.en;
-    const t = (key, vars) => {
-      let s = dict[key] ?? messages.en[key] ?? key;
-      if (vars) {
-        for (const [k, v] of Object.entries(vars)) {
-          s = s.split(`{${k}}`).join(v);
-        }
-      }
-      return s;
-    };
-    return { language, t };
+    return { language, t: createTranslator(language) };
   }, [language]);
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }

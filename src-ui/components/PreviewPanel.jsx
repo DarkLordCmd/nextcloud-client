@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useI18n } from '../i18n';
 import { api } from '../api';
 import { previewKind, isZoomableKind } from '../previewTypes';
 
@@ -22,6 +23,7 @@ function isScrollableTarget(target) {
 
 export default function PreviewPanel({ path, onClose }) {
   const { files, downloadFile } = useApp();
+  const { t } = useI18n();
 
   const sameKindFiles = useMemo(
     () => files.filter((f) => !f.is_directory && previewKind(f) !== null),
@@ -100,7 +102,7 @@ export default function PreviewPanel({ path, onClose }) {
           const ws = wb.SheetNames.length > 0 ? wb.Sheets[wb.SheetNames[0]] : null;
           const html = ws
             ? XLSX.utils.sheet_to_html(ws, { editable: false })
-            : '<p>Лист пуст</p>';
+            : `<p>${t('preview.emptySheet')}</p>`;
           setDocHtml(DOMPurify.sanitize(html));
         }
       } catch (e) {
@@ -205,42 +207,42 @@ export default function PreviewPanel({ path, onClose }) {
             className="whitespace-pre-wrap break-words p-4 font-mono text-nc-text"
             style={{ fontSize: `${14 * zoom}px`, lineHeight: 1.5 }}
           >
-            {textError ? `Ошибка загрузки: ${textError}` : text != null ? text : 'Загрузка…'}
+            {textError ? t('preview.loadError', { error: textError }) : text != null ? text : t('preview.loading')}
           </pre>
         );
       case 'markdown':
         return textError ? (
-          <div className="p-4 text-sm text-red-300">Ошибка загрузки: {textError}</div>
+          <div className="p-4 text-sm text-red-300">{t('preview.loadError', { error: textError })}</div>
         ) : (
           <div
             className="md-body mx-auto max-w-3xl p-6 text-nc-text"
             style={{ fontSize: `${16 * zoom}px` }}
             dangerouslySetInnerHTML={{
-              __html: html != null ? html : '<p>Загрузка…</p>',
+              __html: html != null ? html : `<p>${t('preview.loading')}</p>`,
             }}
           />
         );
       case 'document':
         return textError ? (
-          <div className="p-4 text-sm text-red-300">Ошибка загрузки: {textError}</div>
+          <div className="p-4 text-sm text-red-300">{t('preview.loadError', { error: textError })}</div>
         ) : (
           <div
             className="md-body mx-auto max-w-3xl p-6 text-nc-text"
             style={{ fontSize: `${16 * zoom}px` }}
             dangerouslySetInnerHTML={{
-              __html: docHtml != null ? docHtml : '<p>Загрузка…</p>',
+              __html: docHtml != null ? docHtml : `<p>${t('preview.loading')}</p>`,
             }}
           />
         );
       case 'spreadsheet':
         return textError ? (
-          <div className="p-4 text-sm text-red-300">Ошибка загрузки: {textError}</div>
+          <div className="p-4 text-sm text-red-300">{t('preview.loadError', { error: textError })}</div>
         ) : (
           <div
             className="sheet-body mx-auto max-w-5xl p-4 text-nc-text"
             style={{ fontSize: `${13 * zoom}px` }}
             dangerouslySetInnerHTML={{
-              __html: docHtml != null ? docHtml : '<p>Загрузка…</p>',
+              __html: docHtml != null ? docHtml : `<p>${t('preview.loading')}</p>`,
             }}
           />
         );
@@ -249,19 +251,18 @@ export default function PreviewPanel({ path, onClose }) {
           <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
             <div className="text-4xl">📄</div>
             <div className="max-w-md text-sm text-nc-muted">
-              Предпросмотр старых .doc файлов не поддерживается. Скачайте файл и откройте его в
-              Word.
+              {t('preview.docUnsupported')}
             </div>
             <button
               className="rounded bg-nc-accent px-4 py-2 text-sm text-white hover:bg-nc-accenthover"
               onClick={() => downloadFile(item.path)}
             >
-              ⬇ Скачать
+              ⬇ {t('preview.docDownload')}
             </button>
           </div>
         );
       default:
-        return <div className="p-6 text-nc-muted">Предпросмотр для этого типа недоступен.</div>;
+        return <div className="p-6 text-nc-muted">{t('preview.unavailable')}</div>;
     }
   };
 
@@ -269,16 +270,16 @@ export default function PreviewPanel({ path, onClose }) {
     return (
       <div className="fixed inset-0 z-40 flex flex-col bg-nc-bg">
         <div className="flex items-center justify-between border-b border-nc-border bg-nc-panel px-4 py-2">
-          <span className="text-sm font-medium">Предпросмотр</span>
+          <span className="text-sm font-medium">{t('preview.title')}</span>
           <button
             className="rounded px-3 py-1 text-sm text-nc-text hover:bg-nc-hover"
             onClick={onClose}
           >
-            ✕ Закрыть
+            ✕ {t('preview.close')}
           </button>
         </div>
         <div className="flex flex-1 items-center justify-center text-nc-muted">
-          Файл не найден
+          {t('preview.notFound')}
         </div>
       </div>
     );
@@ -291,20 +292,20 @@ export default function PreviewPanel({ path, onClose }) {
           <button
             className="rounded px-2 py-1 text-nc-text hover:bg-nc-hover disabled:opacity-40"
             onClick={prev}
-            title="Предыдущий (←)"
+            title={t('preview.prev')}
           >
             ◀
           </button>
           <button
             className="rounded px-2 py-1 text-nc-text hover:bg-nc-hover disabled:opacity-40"
             onClick={next}
-            title="Следующий (→)"
+            title={t('preview.next')}
           >
             ▶
           </button>
           <span className="truncate font-medium">{item.name}</span>
           {isZoomableKind(kind) && (
-            <span className="hidden text-xs text-nc-muted sm:inline">· Ctrl+колесо — масштаб</span>
+            <span className="hidden text-xs text-nc-muted sm:inline">· {t('preview.zoomHint')}</span>
           )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -312,13 +313,13 @@ export default function PreviewPanel({ path, onClose }) {
             className="rounded bg-nc-accent px-3 py-1 text-sm text-white hover:bg-nc-accenthover"
             onClick={() => downloadFile(item.path)}
           >
-            ⬇ Скачать
+            ⬇ {t('preview.download')}
           </button>
           <button
             className="rounded px-3 py-1 text-sm text-nc-text hover:bg-nc-hover"
             onClick={onClose}
           >
-            ✕ Закрыть
+            ✕ {t('preview.close')}
           </button>
         </div>
       </header>
@@ -328,7 +329,7 @@ export default function PreviewPanel({ path, onClose }) {
       </div>
 
       <footer className="border-t border-nc-border bg-nc-panel px-4 py-1 text-center text-xs text-nc-muted">
-        {index + 1} / {sameKindFiles.length} · колесо — переключение, Ctrl+колесо — масштаб
+        {t('preview.footer', { index: index + 1, total: sameKindFiles.length })}
       </footer>
     </div>
   );

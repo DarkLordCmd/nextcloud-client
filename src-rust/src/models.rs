@@ -72,11 +72,27 @@ impl AppError {
             AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
+
+    /// Stable machine-readable code used by the frontend to translate errors.
+    pub fn code(&self) -> &'static str {
+        match self {
+            AppError::NotAuthenticated => "not_authenticated",
+            AppError::BadRequest(_) => "bad_request",
+            AppError::NextCloud { .. } => "nextcloud",
+            AppError::Xml(_) => "xml",
+            AppError::Network(_) => "network",
+            AppError::Internal(_) => "internal",
+        }
+    }
 }
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let body = Json(json!({ "success": false, "error": self.to_string() }));
+        let body = Json(json!({
+            "success": false,
+            "error": self.to_string(),
+            "error_code": self.code(),
+        }));
         (self.status(), body).into_response()
     }
 }

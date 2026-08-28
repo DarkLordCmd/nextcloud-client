@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useI18n } from '../i18n';
 
 const inputCls =
   'w-full rounded-lg border border-nc-border bg-nc-bg px-3 py-2 text-nc-text placeholder-nc-muted';
 
 export default function SettingsModal({ onClose }) {
-  const { settings, updateSettings } = useApp();
+  const { settings, updateSettings, language, setLanguage } = useApp();
+  const { t } = useI18n();
   const [uploadKb, setUploadKb] = useState(0);
   const [downloadKb, setDownloadKb] = useState(0);
   const [downloadDir, setDownloadDir] = useState('');
@@ -71,12 +73,23 @@ export default function SettingsModal({ onClose }) {
         className="w-[500px] rounded-xl border border-nc-border bg-nc-panel p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="mb-4 text-lg font-semibold text-nc-text">Settings</h2>
+        <h2 className="mb-4 text-lg font-semibold text-nc-text">{t('settings.title')}</h2>
 
         <div className="space-y-4">
           <div>
+            <label className="mb-1 block text-sm text-nc-muted">{t('settings.language')}</label>
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              className={inputCls}
+            >
+              <option value="en">English</option>
+              <option value="ru">Русский</option>
+            </select>
+          </div>
+          <div>
             <label className="mb-1 block text-sm text-nc-muted">
-              Upload speed limit (KB/s, 0 = unlimited)
+              {t('settings.uploadLimit')}
             </label>
             <input
               type="number"
@@ -88,7 +101,7 @@ export default function SettingsModal({ onClose }) {
           </div>
           <div>
             <label className="mb-1 block text-sm text-nc-muted">
-              Download speed limit (KB/s, 0 = unlimited)
+              {t('settings.downloadLimit')}
             </label>
             <input
               type="number"
@@ -99,13 +112,13 @@ export default function SettingsModal({ onClose }) {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm text-nc-muted">Default download location</label>
+            <label className="mb-1 block text-sm text-nc-muted">{t('settings.downloadDir')}</label>
             <div className="flex gap-2">
               <input
                 type="text"
                 value={downloadDir}
                 onChange={(e) => setDownloadDir(e.target.value)}
-                placeholder="System downloads folder"
+                placeholder={t('settings.downloadDir')}
                 className={inputCls}
               />
               <button
@@ -113,7 +126,7 @@ export default function SettingsModal({ onClose }) {
                 className="shrink-0 rounded-lg border border-nc-border bg-nc-bg px-3 py-2 text-sm text-nc-text hover:bg-nc-hover"
                 onClick={handleBrowse}
               >
-                Browse…
+                {t('settings.browse')}
               </button>
             </div>
           </div>
@@ -124,7 +137,7 @@ export default function SettingsModal({ onClose }) {
               onChange={(e) => setAsk(e.target.checked)}
               className="h-4 w-4 accent-nc-accent"
             />
-            Ask where to save each download
+            {t('settings.askSave')}
           </label>
         </div>
 
@@ -136,16 +149,16 @@ export default function SettingsModal({ onClose }) {
 
         <div className="mt-6 flex items-center justify-between">
           <div className="text-sm">
-            {updateStatus === 'checking' && <span className="text-nc-muted">Checking for updates…</span>}
-            {updateStatus === 'none' && <span className="text-green-300">You're up to date.</span>}
+            {updateStatus === 'checking' && <span className="text-nc-muted">{t('settings.checking')}</span>}
+            {updateStatus === 'none' && <span className="text-green-300">{t('settings.upToDate')}</span>}
             {updateStatus === 'available' && (
-              <span className="text-nc-accent">Update available</span>
+              <span className="text-nc-accent">{t('settings.available')}</span>
             )}
             {updateStatus === 'downloading' && (
-              <span className="text-nc-accent">Downloading update…</span>
+              <span className="text-nc-accent">{t('settings.downloading')}</span>
             )}
             {updateStatus === 'error' && (
-              <span className="text-red-300">Could not check for updates.</span>
+              <span className="text-red-300">{t('settings.checkError')}</span>
             )}
           </div>
           <div className="flex justify-end gap-2">
@@ -155,14 +168,14 @@ export default function SettingsModal({ onClose }) {
               onClick={handleCheckUpdates}
               disabled={updateStatus === 'checking' || updateStatus === 'downloading'}
             >
-              Check for updates
+              {t('settings.checkUpdates')}
             </button>
             <button
               type="button"
               className="rounded-lg border border-nc-border px-4 py-2 text-sm text-nc-text hover:bg-nc-hover"
               onClick={onClose}
             >
-              Cancel
+              {t('settings.cancel')}
             </button>
             <button
               type="button"
@@ -170,7 +183,7 @@ export default function SettingsModal({ onClose }) {
               onClick={handleSave}
               disabled={saving}
             >
-              {saving ? 'Saving…' : 'Save'}
+              {saving ? t('settings.saving') : t('settings.save')}
             </button>
           </div>
         </div>

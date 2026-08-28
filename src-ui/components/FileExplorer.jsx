@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useI18n } from '../i18n';
 import FileIcon from './FileIcon';
 
 function FolderNode({ path, name, depth }) {
@@ -41,6 +42,7 @@ function FolderNode({ path, name, depth }) {
 
 export default function FileExplorer() {
   const { treeNodes, ensureNode, currentPath, navigate } = useApp();
+  const { t } = useI18n();
   const rootChildren = treeNodes['/'] || [];
 
   useEffect(() => {
@@ -50,7 +52,7 @@ export default function FileExplorer() {
   return (
     <aside className="hidden w-64 shrink-0 flex-col overflow-y-auto border-r border-nc-border bg-nc-panel md:flex">
       <div className="border-b border-nc-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-nc-muted">
-        Folders
+        {t('folders.title')}
       </div>
       <div
         className={`mt-1 flex cursor-pointer items-center gap-1 rounded px-2 py-1 text-sm ${
@@ -59,7 +61,7 @@ export default function FileExplorer() {
         onClick={() => navigate('/')}
       >
         <span className="text-xs">☁️</span>
-        <span>Root</span>
+        <span>{t('folders.root')}</span>
       </div>
       {rootChildren
         .filter((c) => c.is_directory)

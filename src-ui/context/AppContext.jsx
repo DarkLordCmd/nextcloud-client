@@ -8,7 +8,7 @@ import React, {
   useState,
 } from 'react';
 import { api } from '../api';
-import { I18nProvider } from '../i18n';
+import { I18nProvider, createTranslator, translateError } from '../i18n';
 
 const AppContext = createContext(null);
 
@@ -30,6 +30,8 @@ export function AppProvider({ children }) {
   const [preview, setPreview] = useState(null);
   const [settings, setSettings] = useState(null);
   const [language, setLanguageState] = useState('en');
+
+  const t = useMemo(() => createTranslator(language), [language]);
 
   const pathRef = useRef('/');
   const filesRef = useRef([]);
@@ -126,7 +128,7 @@ export function AppProvider({ children }) {
         setFiles(data.files || []);
         listCache.current.set(path, { files: data.files || [], ts: Date.now() });
       } catch (e) {
-        if (seq === listSeq.current) setError(e.message);
+        if (seq === listSeq.current) setError(translateError(t, e));
       } finally {
         if (seq === listSeq.current) setLoading(false);
       }
@@ -141,11 +143,11 @@ export function AppProvider({ children }) {
       listCache.current.set(path, { files: data.files || [], ts: Date.now() });
     } catch (e) {
       if (seq !== listSeq.current) return;
-      setError(e.message);
+      setError(translateError(t, e));
     } finally {
       if (seq === listSeq.current) setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   // Load root contents once authenticated.
   useEffect(() => {
@@ -394,7 +396,7 @@ export function AppProvider({ children }) {
                   id: `local-${Date.now()}-${file.name}`,
                   kind: 'error',
                   filename: file.name,
-                  error: e.message,
+                  error: translateError(t, e),
                   status: 'error',
                 },
               ]);
@@ -405,7 +407,7 @@ export function AppProvider({ children }) {
       await Promise.all(workers);
       loadFiles(dir);
     },
-    [loadFiles, invalidateCache]
+    [loadFiles, invalidateCache, t]
   );
 
   const createFolder = useCallback(
@@ -426,13 +428,13 @@ export function AppProvider({ children }) {
       try {
         await api.remove(p);
       } catch (e) {
-        setError(e.message);
+        setError(translateError(t, e));
       }
     }
     setSelected(new Set());
     invalidateCache(dir);
     loadFiles(dir);
-  }, [loadFiles, invalidateCache]);
+  }, [loadFiles, invalidateCache, t]);
 
   const renameItem = useCallback(
     async (path, newName) => {
@@ -453,9 +455,9 @@ export function AppProvider({ children }) {
       const data = await api.list(path);
       setTreeNodes((prev) => ({ ...prev, [path]: data.files || [] }));
     } catch (e) {
-      setError(e.message);
+      setError(translateError(t, e));
     }
-  }, []);
+  }, [t]);
 
   // --- Hotkeys ---
   useEffect(() => {

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useI18n, translateError } from '../i18n';
 import { previewKind } from '../previewTypes';
 
 const MENU_ITEM =
@@ -7,6 +8,7 @@ const MENU_ITEM =
 
 export default function ContextMenu({ x, y, item, onClose }) {
   const { downloadFile, renameItem, deleteSelected, toggleSelect, refresh, openPreview } = useApp();
+  const { t } = useI18n();
   const [pos, setPos] = useState({ x, y });
   const ref = useRef(null);
   const [renaming, setRenaming] = useState(false);
@@ -34,7 +36,7 @@ export default function ContextMenu({ x, y, item, onClose }) {
     try {
       await downloadFile(item.path);
     } catch (e) {
-      window.alert(e.message);
+      window.alert(translateError(t, e));
     }
   };
 
@@ -52,18 +54,18 @@ export default function ContextMenu({ x, y, item, onClose }) {
     try {
       await renameItem(item.path, newName.trim());
     } catch (e) {
-      window.alert(e.message);
+      window.alert(translateError(t, e));
     }
   };
 
   const handleDelete = async () => {
     onClose();
-    const ok = window.confirm(`Delete "${item.name}"?`);
+    const ok = window.confirm(t('menu.deleteConfirm', { name: item.name }));
     if (!ok) return;
     try {
       await deleteSelected();
     } catch (e) {
-      window.alert(e.message);
+      window.alert(translateError(t, e));
     }
   };
 
@@ -75,7 +77,7 @@ export default function ContextMenu({ x, y, item, onClose }) {
       onMouseLeave={onClose}
     >
       <button className={MENU_ITEM} onClick={handleDownload} disabled={item.is_directory}>
-        ⬇ Download
+        ⬇ {t('menu.download')}
       </button>
       <button
         className={MENU_ITEM}
@@ -85,17 +87,17 @@ export default function ContextMenu({ x, y, item, onClose }) {
           openPreview(item.path);
         }}
       >
-        👁 Preview
+        👁 {t('menu.preview')}
       </button>
       <button className={MENU_ITEM} onClick={handleRename}>
-        ✏️ Rename
+        ✏️ {t('menu.rename')}
       </button>
       <div className="my-1 border-t border-nc-border" />
       <button className={`${MENU_ITEM} text-red-300 hover:bg-red-500/20`} onClick={handleDelete}>
-        🗑 Delete
+        🗑 {t('menu.delete')}
       </button>
       <button className={MENU_ITEM} onClick={() => { onClose(); refresh(); }}>
-        🔄 Refresh
+        🔄 {t('menu.refresh')}
       </button>
       {renaming && (
         <div className="border-t border-nc-border px-3 py-2">
@@ -116,7 +118,7 @@ export default function ContextMenu({ x, y, item, onClose }) {
             className="mt-1 w-full rounded bg-nc-accent px-2 py-1 text-sm text-white hover:bg-nc-accenthover"
             onClick={handleRename}
           >
-            Save
+            {t('menu.save')}
           </button>
         </div>
       )}
