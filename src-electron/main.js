@@ -116,11 +116,38 @@ function checkHealth(callback) {
 
 function onBackendReady() {
   backendReady = true;
+  importAccounts();
   if (!mainWindow || mainWindow.isDestroyed()) {
     createWindow();
   } else {
     mainWindow.loadURL(uiUrl());
   }
+}
+
+// Load saved accounts from settings.json and push them into the backend.
+function importAccounts() {
+  const { loadSettings } = require('./downloads');
+  const accounts = (loadSettings().accounts || []).filter(
+    (a) => a && a.server && a.username && a.password
+  );
+  const body = JSON.stringify({ accounts });
+  const req = http.request(
+    {
+      host: '127.0.0.1',
+      port: backendPort,
+      path: '/api/auth/import',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+        Authorization: backendToken ? `Bearer ${backendToken}` : '',
+      },
+    },
+    (res) => res.resume()
+  );
+  req.on('error', (e) => console.error('[import-accounts]', e.message));
+  req.write(body);
+  req.end();
 }
 
 // UI URL: Vite dev server in development, built files in production.

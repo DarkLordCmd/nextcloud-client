@@ -25,6 +25,13 @@ function initDownloadsModule(windowGetter) {
     return res.canceled || !res.filePaths || !res.filePaths[0] ? null : res.filePaths[0];
   });
   ipcMain.handle('download:file', (e, { url, name }) => downloadFileToDisk(e.sender, url, name));
+  ipcMain.handle('accounts:load', () => loadSettings().accounts || []);
+  ipcMain.handle('accounts:save', (_e, { accounts, active }) => {
+    const s = loadSettings();
+    s.accounts = Array.isArray(accounts) ? accounts : [];
+    saveSettings();
+    return s.accounts;
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -42,6 +49,7 @@ function defaultSettings() {
     uploadSpeedLimit: 0,
     downloadSpeedLimit: 0,
     language: 'en',
+    accounts: [],
   };
 }
 function loadSettings() {

@@ -29,4 +29,7 @@ contextBridge.exposeInMainWorld('nextcloud', {
     ipcRenderer.on('updates:status', listener);
     return () => ipcRenderer.removeListener('updates:status', listener);
   },
+  // Accounts
+  loadAccounts: () => ipcRenderer.invoke('accounts:load'),
+  saveAccounts: (accounts, active) => ipcRenderer.invoke('accounts:save', { accounts, active }),
 });
