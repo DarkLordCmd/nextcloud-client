@@ -27,6 +27,7 @@ export function AppProvider({ children }) {
   const [dragOver, setDragOver] = useState(false);
   const [treeNodes, setTreeNodes] = useState({ '/': [] });
   const [preview, setPreview] = useState(null);
+  const [settings, setSettings] = useState(null);
 
   const pathRef = useRef('/');
   const filesRef = useRef([]);
@@ -59,6 +60,33 @@ export function AppProvider({ children }) {
       .then((data) => setAuth(data))
       .catch(() => setAuth({ logged_in: false }))
       .finally(() => setAuthLoading(false));
+  }, []);
+
+  // Load persisted settings (speed limits, download location, "ask" flag).
+  useEffect(() => {
+    if (window.nextcloud && window.nextcloud.getSettings) {
+      window.nextcloud
+        .getSettings()
+        .then((s) => setSettings(s))
+        .catch(() => {});
+    }
+  }, []);
+
+  // Apply the upload speed limit to the backend once we're logged in and know
+  // the saved settings (the backend starts fresh on every app launch).
+  useEffect(() => {
+    if (auth && auth.logged_in && settings && window.nextcloud) {
+      api.setUploadLimit(settings.uploadSpeedLimit || 0).catch(() => {});
+    }
+  }, [auth && auth.logged_in, settings && settings.uploadSpeedLimit]);
+
+  const updateSettings = useCallback(async (partial) => {
+    if (!window.nextcloud || !window.nextcloud.updateSettings) return;
+    const next = await window.nextcloud.updateSettings(partial);
+    setSettings(next);
+    if (partial.uploadSpeedLimit !== undefined) {
+      api.setUploadLimit(next.uploadSpeedLimit || 0).catch(() => {});
+    }
   }, []);
 
   const invalidateCache = useCallback((path) => {
@@ -253,15 +281,54 @@ export function AppProvider({ children }) {
 
   // --- File operations ---
   const downloadFile = useCallback(async (path) => {
+    const name = path.split('/').pop() || 'download';
+    if (window.nextcloud && window.nextcloud.downloadFile) {
+      // Main process handles the save dialog / default folder and speed limit.
+      const res = await window.nextcloud.downloadFile({ url: api.downloadUrl(path), name });
+      if (res && res.canceled) return;
+      if (res && res.error) throw new Error(res.error);
+      return;
+    }
+    // Fallback (e.g. running outside Electron): blob download.
     const blob = await api.downloadBlob(path);
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = path.split('/').pop() || 'download';
+    a.download = name;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+  }, []);
+
+  // Show download progress (and completion/errors) in the operations panel.
+  useEffect(() => {
+    if (!window.nextcloud || !window.nextcloud.onDownloadProgress) return;
+    const off = window.nextcloud.onDownloadProgress((evt) => {
+      setOperations((prev) => {
+        const idx = prev.findIndex((op) => op.id === evt.id);
+        const row = {
+          id: evt.id,
+          kind: 'download',
+          filename: evt.name,
+          bytes_done: evt.bytes,
+          bytes_total: evt.total,
+          percent: evt.percent ?? 0,
+          error: evt.error,
+          status: evt.done ? 'done' : evt.error ? 'error' : 'active',
+        };
+        const next = [...prev];
+        if (idx === -1) next.push(row);
+        else next[idx] = row;
+        return next;
+      });
+      if (evt.done) {
+        setTimeout(() => {
+          setOperations((prev) => prev.filter((op) => op.id !== evt.id));
+        }, 2000);
+      }
+    });
+    return off;
   }, []);
 
   // Download many files in parallel with a concurrency limit. Throws the first
@@ -442,6 +509,8 @@ export function AppProvider({ children }) {
       dragOver,
       treeNodes,
       preview,
+      settings,
+      updateSettings,
       setError,
       inputRef,
       login,
@@ -479,6 +548,8 @@ export function AppProvider({ children }) {
       dragOver,
       treeNodes,
       preview,
+      settings,
+      updateSettings,
       login,
       logout,
       navigate,

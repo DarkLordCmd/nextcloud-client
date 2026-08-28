@@ -7,7 +7,7 @@ use axum::{
     http::{HeaderValue, Method, StatusCode, header::AUTHORIZATION},
     middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::{get, patch, post},
+    routing::{get, patch, post, put},
     Router,
 };
 use serde_json::json;
@@ -16,7 +16,7 @@ use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 use crate::{
     auth::{self, AuthState},
-    download, models::ProgressEvent, nextcloud, upload,
+    download, models::ProgressEvent, nextcloud, settings, upload,
 };
 
 /// Shared application state passed to every handler via `State`.
@@ -30,6 +30,8 @@ pub struct AppState {
     pub progress_tx: broadcast::Sender<ProgressEvent>,
     /// Monotonic counter used to generate unique operation ids.
     pub next_id: Arc<std::sync::atomic::AtomicU64>,
+    /// Upload speed cap in bytes/sec. `0` means unlimited.
+    pub upload_limit: Arc<std::sync::atomic::AtomicU64>,
     /// Random per-session secret. Every `/api/*` request must carry it so that
     /// only our own UI (which receives it via the Electron preload bridge) can
     /// talk to the local backend.
@@ -43,6 +45,7 @@ impl AppState {
             http: build_http_client(),
             progress_tx: broadcast::channel(256).0,
             next_id: Arc::new(std::sync::atomic::AtomicU64::new(1)),
+            upload_limit: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             token,
         }
     }
@@ -130,6 +133,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/files/mkdir", post(nextcloud::mkdir))
         .route("/api/files/rename", patch(nextcloud::rename))
         .route("/api/files/progress", get(upload::progress_sse))
+        .route("/api/settings/upload-limit", put(settings::set_upload_limit))
         .layer(axum::extract::DefaultBodyLimit::disable())
         .layer(middleware::from_fn_with_state(state.clone(), require_token))
         .layer(cors)

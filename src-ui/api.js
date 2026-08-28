@@ -109,4 +109,11 @@ export const api = {
   progressUrl() {
     return withToken(`${BACKEND}/api/files/progress`);
   },
+  setUploadLimit(bytesPerSec) {
+    return request('/api/settings/upload-limit', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bytes_per_sec: bytesPerSec }),
+    });
+  },
 };

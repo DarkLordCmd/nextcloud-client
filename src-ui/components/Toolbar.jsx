@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import SettingsModal from './SettingsModal';
 
 const BTN =
   'flex items-center gap-1.5 rounded-lg border border-nc-border bg-nc-bg px-3 py-1.5 text-sm hover:bg-nc-hover disabled:cursor-not-allowed disabled:opacity-50';
@@ -16,6 +17,7 @@ export default function Toolbar() {
     currentPath,
   } = useApp();
   const [creating, setCreating] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   const selectedItems = files.filter((f) => selected.has(f.path));
   const canDelete = selected.size > 0;
@@ -74,9 +76,13 @@ export default function Toolbar() {
       <button className={BTN} onClick={refresh} title="Refresh (F5)">
         🔄
       </button>
+      <button className={BTN} onClick={() => setShowSettings(true)} title="Settings">
+        ⚙️
+      </button>
       <span className="ml-2 text-xs text-nc-muted">
         {selected.size > 0 ? `${selected.size} selected` : currentPath}
       </span>
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 use std::convert::Infallible;
 use std::io::SeekFrom;
+use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -11,11 +12,11 @@ use axum::{
     response::sse::{Event, KeepAlive, Sse},
 };
 use bytes::Bytes;
-use futures::{Stream, StreamExt, TryStreamExt, task::Poll};
+use futures::{Stream, StreamExt, TryStreamExt};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
-use tokio::sync::broadcast;
+use tokio::sync::{Mutex, broadcast};
 use tokio_stream::wrappers::BroadcastStream;
 
 use crate::{
@@ -131,6 +132,7 @@ async fn simple_upload(
         id.to_string(),
         name.to_string(),
         total,
+        limiter(state),
     );
 
     let resp = state
@@ -233,6 +235,7 @@ async fn run_chunked(
 ) -> Result<(), AppError> {
     let mut emitter =
         ProgressEmitter::new(state.progress_tx.clone(), id.to_string(), name.to_string(), total);
+    let limit = limiter(state);
 
     // Phase 1: receive the client stream into a temp file (0-50% progress).
     let mut file = tokio::fs::File::create(temp_str)
@@ -266,9 +269,13 @@ async fn run_chunked(
         let uploads_dir = uploads_dir.to_string();
         let client = state.http.clone();
         let auth = auth.clone();
+        let limit = limit.clone();
         async move {
             let bytes = read_part(&temp_str, i, CHUNK_SIZE).await?;
             let len = bytes.len() as u64;
+            if let Some(bucket) = &limit {
+                bucket.lock().await.acquire(len).await;
+            }
             let url = format!("{uploads_dir}{i}");
             let resp = nextcloud::dav_request(
                 &client,
@@ -338,6 +345,59 @@ async fn read_part(path: &str, index: u64, chunk_size: u64) -> Result<Vec<u8>, A
 // Progress helpers
 // ---------------------------------------------------------------------------
 
+/// Token bucket used to cap upload throughput. Shared across concurrent part
+/// uploads so the aggregate rate respects the configured limit.
+struct TokenBucket {
+    rate: u64,
+    tokens: f64,
+    last_refill: Instant,
+}
+
+impl TokenBucket {
+    fn new(rate: u64) -> Self {
+        Self {
+            rate,
+            tokens: rate as f64,
+            last_refill: Instant::now(),
+        }
+    }
+
+    /// Wait until `n` bytes can be sent, then consume them.
+    async fn acquire(&mut self, n: u64) {
+        if self.rate == 0 {
+            return;
+        }
+        // Keep enough headroom for one full chunk so large parts never wait
+        // forever at a low rate.
+        let cap = (self.rate as f64 * 4.0).max(n as f64);
+        loop {
+            let now = Instant::now();
+            self.tokens = (self.tokens
+                + now.duration_since(self.last_refill).as_secs_f64() * self.rate as f64)
+                .min(cap);
+            self.last_refill = now;
+            if self.tokens >= n as f64 {
+                self.tokens -= n as f64;
+                return;
+            }
+            let need = n as f64 - self.tokens;
+            // Note: last_refill is intentionally NOT reset here so the elapsed
+            // sleep time is credited on the next iteration.
+            tokio::time::sleep(Duration::from_secs_f64(need / self.rate as f64)).await;
+        }
+    }
+}
+
+/// Build a shared limiter from the current upload cap, or `None` when unlimited.
+fn limiter(state: &AppState) -> Option<Arc<Mutex<TokenBucket>>> {
+    let rate = state.upload_limit.load(Ordering::SeqCst);
+    if rate == 0 {
+        None
+    } else {
+        Some(Arc::new(Mutex::new(TokenBucket::new(rate))))
+    }
+}
+
 struct ProgressEmitter {
     tx: broadcast::Sender<ProgressEvent>,
     id: String,
@@ -380,47 +440,60 @@ impl ProgressEmitter {
     }
 }
 
-/// Wrap a byte stream, counting bytes and emitting throttled progress events.
+/// Wrap a byte stream, counting bytes, emitting throttled progress events and
+/// (optionally) limiting throughput with a shared token bucket.
 fn with_progress<S>(
     stream: S,
     tx: broadcast::Sender<ProgressEvent>,
     id: String,
     name: String,
     total: u64,
+    limit: Option<Arc<Mutex<TokenBucket>>>,
 ) -> impl Stream<Item = Result<Bytes, std::io::Error>>
 where
     S: Stream<Item = Result<Bytes, std::io::Error>> + Send + 'static,
 {
-    let mut inner = Box::pin(stream);
-    let mut sent: u64 = 0;
-    let mut last_emit = Instant::now();
-    futures::stream::poll_fn(move |cx| match inner.as_mut().poll_next(cx) {
-        Poll::Ready(Some(Ok(chunk))) => {
-            sent += chunk.len() as u64;
-            let now = Instant::now();
-            let percent = if total == 0 {
-                0
-            } else {
-                ((sent as f64 / total as f64) * 100.0) as u32
-            };
-            if now.duration_since(last_emit) >= PROGRESS_INTERVAL || percent == 100 {
-                last_emit = now;
-                let _ = tx.send(ProgressEvent {
-                    id: id.clone(),
-                    kind: "progress".to_string(),
-                    filename: Some(name.clone()),
-                    bytes_done: Some(sent),
-                    bytes_total: Some(total),
-                    percent: Some(percent),
-                    error: None,
-                });
+    let stream = Box::pin(stream);
+    futures::stream::unfold(
+        (stream, 0u64, Instant::now()),
+        move |(mut stream, mut sent, mut last_emit)| {
+            let tx = tx.clone();
+            let id = id.clone();
+            let name = name.clone();
+            let limit = limit.clone();
+            async move {
+                match stream.as_mut().next().await {
+                    Some(Ok(chunk)) => {
+                        sent += chunk.len() as u64;
+                        if let Some(bucket) = &limit {
+                            bucket.lock().await.acquire(chunk.len() as u64).await;
+                        }
+                        let now = Instant::now();
+                        let percent = if total == 0 {
+                            0
+                        } else {
+                            ((sent as f64 / total as f64) * 100.0) as u32
+                        };
+                        if now.duration_since(last_emit) >= PROGRESS_INTERVAL || percent == 100 {
+                            last_emit = now;
+                            let _ = tx.send(ProgressEvent {
+                                id: id.clone(),
+                                kind: "progress".to_string(),
+                                filename: Some(name.clone()),
+                                bytes_done: Some(sent),
+                                bytes_total: Some(total),
+                                percent: Some(percent),
+                                error: None,
+                            });
+                        }
+                        Some((Ok(chunk), (stream, sent, last_emit)))
+                    }
+                    Some(Err(e)) => Some((Err(e), (stream, sent, last_emit))),
+                    None => None,
+                }
             }
-            Poll::Ready(Some(Ok(chunk)))
-        }
-        Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e))),
-        Poll::Ready(None) => Poll::Ready(None),
-        Poll::Pending => Poll::Pending,
-    })
+        },
+    )
 }
 
 /// `GET /api/files/progress` — SSE stream of progress events.

@@ -3,6 +3,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
+const { initDownloadsModule } = require('./downloads');
 
 let rustProcess = null;
 let backendPort = 7842;
@@ -176,6 +177,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  initDownloadsModule(() => mainWindow);
   startBackend();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
