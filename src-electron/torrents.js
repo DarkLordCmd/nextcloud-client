@@ -115,6 +115,40 @@ async function addTorrent(source, targetDir) {
   return gid;
 }
 
+// Download a .torrent from Nextcloud into a temp file, then hand it to aria2.
+function downloadCloudFile(url, dest) {
+  return new Promise((resolve, reject) => {
+    const req = http.get(url, (res) => {
+      if (res.statusCode !== 200) {
+        res.resume();
+        reject(new Error(`HTTP ${res.statusCode}`));
+        return;
+      }
+      const ws = fs.createWriteStream(dest);
+      res.pipe(ws);
+      ws.on('finish', () => resolve(dest));
+      ws.on('error', reject);
+    });
+    req.on('error', reject);
+  });
+}
+
+async function addCloudTorrent(cloudPath, targetDir) {
+  const tempFile = path.join(downloadsDir(), `cloud-${Date.now()}.torrent`);
+  const url =
+    `http://127.0.0.1:${getBackendPort()}/api/files/download?path=${encodeURIComponent(
+      cloudPath
+    )}&token=${encodeURIComponent(getBackendToken())}`;
+  await downloadCloudFile(url, tempFile);
+  try {
+    return await addTorrent(tempFile, targetDir);
+  } finally {
+    try {
+      fs.unlinkSync(tempFile);
+    } catch (_) {}
+  }
+}
+
 function statusPayload(st) {
   return {
     gid: st.gid,
@@ -252,6 +286,11 @@ function initTorrentsModule(opts) {
   ipcMain.handle('torrent:add', async (_e, { source, targetDir }) => {
     if (!source) throw new Error('No source');
     const gid = await addTorrent(source, targetDir);
+    return { gid };
+  });
+  ipcMain.handle('torrent:add-cloud', async (_e, { path, targetDir }) => {
+    if (!path) throw new Error('No path');
+    const gid = await addCloudTorrent(path, targetDir);
     return { gid };
   });
   ipcMain.handle('torrent:pause', (_e, gid) => rpc('aria2.pause', [gid]));

@@ -262,6 +262,19 @@ export function AppProvider({ children }) {
     }
   }, []);
 
+  // Start downloading a .torrent file that lives in the cloud: main downloads
+  // it to a temp file and hands it to aria2, uploading results to the same
+  // folder the torrent was in.
+  const startTorrentFromCloud = useCallback(
+    async (path) => {
+      const dir = pathRef.current || '/';
+      if (window.nextcloud && window.nextcloud.torrentAddCloud) {
+        await window.nextcloud.torrentAddCloud({ path, targetDir: dir });
+      }
+    },
+    []
+  );
+
   // --- Selection helpers ---
   const toggleSelect = useCallback((path, multi = false) => {
     setSelected((prev) => {
@@ -607,6 +620,7 @@ export function AppProvider({ children }) {
       switchAccount,
       removeAccount,
       startDragOut,
+      startTorrentFromCloud,
       navigate,
       goUp,
       refresh,
@@ -649,6 +663,7 @@ export function AppProvider({ children }) {
       switchAccount,
       removeAccount,
       startDragOut,
+      startTorrentFromCloud,
       navigate,
       goUp,
       refresh,

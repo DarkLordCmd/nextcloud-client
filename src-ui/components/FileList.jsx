@@ -38,6 +38,7 @@ export default function FileList() {
     downloadFile,
     openPreview,
     startDragOut,
+    startTorrentFromCloud,
   } = useApp();
   const { t, language } = useI18n();
   const [sortKey, setSortKey] = useState('name');
@@ -102,6 +103,8 @@ export default function FileList() {
 
   const onRowDoubleClick = (item) => {
     if (item.is_directory) navigate(item.path);
+    else if (!item.is_directory && item.name.toLowerCase().endsWith('.torrent'))
+      startTorrentFromCloud(item.path);
     else if (previewKind(item)) openPreview(item.path);
     else downloadFile(item.path);
   };

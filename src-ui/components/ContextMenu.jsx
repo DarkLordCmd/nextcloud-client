@@ -7,7 +7,8 @@ const MENU_ITEM =
   'w-full px-4 py-2 text-left text-sm hover:bg-nc-hover disabled:cursor-not-allowed disabled:opacity-50';
 
 export default function ContextMenu({ x, y, item, onClose }) {
-  const { downloadFile, renameItem, deleteSelected, toggleSelect, refresh, openPreview } = useApp();
+  const { downloadFile, renameItem, deleteSelected, toggleSelect, refresh, openPreview, startTorrentFromCloud } =
+    useApp();
   const { t } = useI18n();
   const [pos, setPos] = useState({ x, y });
   const ref = useRef(null);
@@ -79,6 +80,17 @@ export default function ContextMenu({ x, y, item, onClose }) {
       <button className={MENU_ITEM} onClick={handleDownload} disabled={item.is_directory}>
         ⬇ {t('menu.download')}
       </button>
+      {!item.is_directory && item.name.toLowerCase().endsWith('.torrent') && (
+        <button
+          className={MENU_ITEM}
+          onClick={() => {
+            onClose();
+            startTorrentFromCloud(item.path);
+          }}
+        >
+          ⚡ {t('torrents.add')}
+        </button>
+      )}
       <button
         className={MENU_ITEM}
         disabled={item.is_directory || !previewKind(item)}

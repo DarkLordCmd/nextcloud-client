@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld('nextcloud', {
   startDrag: (paths) => ipcRenderer.send('drag:start', paths),
   // Torrents
   torrentAdd: (payload) => ipcRenderer.invoke('torrent:add', payload),
+  torrentAddCloud: (payload) => ipcRenderer.invoke('torrent:add-cloud', payload),
   torrentPause: (gid) => ipcRenderer.invoke('torrent:pause', gid),
   torrentUnpause: (gid) => ipcRenderer.invoke('torrent:unpause', gid),
   torrentRemove: (gid) => ipcRenderer.invoke('torrent:remove', gid),
