@@ -248,6 +248,12 @@ export function AppProvider({ children }) {
     [invalidateCache, loadFiles]
   );
 
+  const startDragOut = useCallback((paths) => {
+    if (window.nextcloud && window.nextcloud.startDrag) {
+      window.nextcloud.startDrag(paths);
+    }
+  }, []);
+
   // --- Selection helpers ---
   const toggleSelect = useCallback((path, multi = false) => {
     setSelected((prev) => {
@@ -588,6 +594,7 @@ export function AppProvider({ children }) {
       logout,
       switchAccount,
       removeAccount,
+      startDragOut,
       navigate,
       goUp,
       refresh,
@@ -629,6 +636,7 @@ export function AppProvider({ children }) {
       logout,
       switchAccount,
       removeAccount,
+      startDragOut,
       navigate,
       goUp,
       refresh,

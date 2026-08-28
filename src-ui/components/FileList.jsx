@@ -37,6 +37,7 @@ export default function FileList() {
     navigate,
     downloadFile,
     openPreview,
+    startDragOut,
   } = useApp();
   const { t, language } = useI18n();
   const [sortKey, setSortKey] = useState('name');
@@ -157,9 +158,33 @@ export default function FileList() {
             return (
               <div
                 key={item.path}
+                draggable
                 onClick={(e) => onRowClick(e, item, index)}
                 onDoubleClick={() => onRowDoubleClick(item)}
                 onContextMenu={(e) => onContextMenu(e, item)}
+                onDragStart={(e) => {
+                  // If this row is part of a multi-selection, drag them all;
+                  // otherwise just this item.
+                  const multi = selected.has(item.path) && selected.size > 1;
+                  const targets = multi
+                    ? sorted
+                        .filter((f) => selected.has(f.path))
+                        .map((f) => ({
+                          path: f.path,
+                          name: f.name,
+                          is_directory: f.is_directory,
+                        }))
+                    : [
+                        {
+                          path: item.path,
+                          name: item.name,
+                          is_directory: item.is_directory,
+                        },
+                      ];
+                  e.dataTransfer.effectAllowed = 'copy';
+                  e.dataTransfer.setData('text/plain', item.name);
+                  startDragOut(targets);
+                }}
                 className={`flex cursor-pointer items-center gap-3 px-4 py-1.5 ${
                   sel ? 'bg-nc-accent/25' : 'hover:bg-nc-hover'
                 }`}
