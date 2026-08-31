@@ -5,6 +5,7 @@
   "private": true,
   "description": "Desktop client for NextCloud with a Rust backend and Electron + React frontend",
   "author": "DarkLordCmd",
+  "homepage": "https://github.com/DarkLordCmd/nextcloud-client",
   "main": "src-electron/main.js",
   "scripts": {
     "dev": "concurrently -k -n ui,app \"npm:dev:ui\" \"npm:dev:electron\"",
