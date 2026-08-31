@@ -12,19 +12,21 @@ files:
   - src-electron/**
   - src-ui/dist/**
 
-extraResources:
-  - from: src-rust/target/release/nextcloud-client.exe
-    to: bin/nextcloud-client.exe
-  - from: build/aria2c.exe
-    to: bin/aria2c.exe
-
 win:
   target: nsis
   signAndEditExecutable: false
+  extraResources:
+    - from: src-rust/target/release/nextcloud-client.exe
+      to: bin/nextcloud-client.exe
+    - from: build/aria2c.exe
+      to: bin/aria2c.exe
+
+linux:
+  target: AppImage
+  extraResources:
+    - from: src-rust/target/linux-release/nextcloud-client
+      to: bin/nextcloud-client
 
 mac:
   target: dmg
   category: public.app-category.productivity
-
-linux:
-  target: AppImage
