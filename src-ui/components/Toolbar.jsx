@@ -5,6 +5,7 @@ import AccountMenu from './AccountMenu';
 import TorrentsPanel from './TorrentsPanel';
 import SettingsModal from './SettingsModal';
 import ViewModeMenu from './ViewModeMenu';
+import NewFolderModal from './NewFolderModal';
 
 const BTN =
   'flex items-center gap-1.5 rounded-lg border border-nc-border bg-nc-bg px-3 py-1.5 text-sm hover:bg-nc-hover disabled:cursor-not-allowed disabled:opacity-50';
@@ -12,7 +13,6 @@ const BTN =
 export default function Toolbar() {
   const {
     openUploadDialog,
-    createFolder,
     downloadMany,
     deleteSelected,
     refresh,
@@ -21,7 +21,7 @@ export default function Toolbar() {
     currentPath,
   } = useApp();
   const { t } = useI18n();
-  const [creating, setCreating] = useState(false);
+  const [showNewFolder, setShowNewFolder] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showTorrents, setShowTorrents] = useState(false);
 
@@ -29,18 +29,7 @@ export default function Toolbar() {
   const canDelete = selected.size > 0;
   const canDownload = selectedItems.some((f) => !f.is_directory);
 
-  const handleNewFolder = async () => {
-    const name = window.prompt(t('toolbar.folderName'));
-    if (!name || !name.trim()) return;
-    setCreating(true);
-    try {
-      await createFolder(name.trim());
-    } catch (e) {
-      window.alert(translateError(t, e));
-    } finally {
-      setCreating(false);
-    }
-  };
+  const handleNewFolder = () => setShowNewFolder(true);
 
   const handleDelete = async () => {
     const names = selectedItems.map((f) => f.name);
@@ -70,7 +59,7 @@ export default function Toolbar() {
       <button className={BTN} onClick={openUploadDialog} title={t('toolbar.uploadTitle')}>
         ⬆ {t('toolbar.upload')}
       </button>
-      <button className={BTN} onClick={handleNewFolder} disabled={creating}>
+      <button className={BTN} onClick={handleNewFolder}>
         📁 {t('toolbar.newFolder')}
       </button>
       <button className={BTN} onClick={handleDownload} disabled={!canDownload} title={t('toolbar.downloadTitle')}>
@@ -95,6 +84,7 @@ export default function Toolbar() {
       </span>
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
       {showTorrents && <TorrentsPanel onClose={() => setShowTorrents(false)} />}
+      {showNewFolder && <NewFolderModal onClose={() => setShowNewFolder(false)} />}
     </div>
   );
 }
