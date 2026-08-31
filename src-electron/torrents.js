@@ -44,16 +44,17 @@ function log(...args) {
 }
 
 function aria2Path() {
+  const exe = process.platform === 'win32' ? 'aria2c.exe' : 'aria2c';
   if (process.env.NODE_ENV === 'development') {
     const candidates = [
-      path.join(__dirname, '..', 'build', 'aria2c.exe'),
-      path.join(__dirname, '..', '..', 'build', 'aria2c.exe'),
+      path.join(__dirname, '..', 'build', exe),
+      path.join(__dirname, '..', '..', 'build', exe),
     ];
     for (const c of candidates) if (fs.existsSync(c)) return c;
   }
-  const bundled = path.join(process.resourcesPath, 'bin', 'aria2c.exe');
+  const bundled = path.join(process.resourcesPath, 'bin', exe);
   if (fs.existsSync(bundled)) return bundled;
-  return 'aria2c';
+  return exe;
 }
 
 function findFreePort(start) {

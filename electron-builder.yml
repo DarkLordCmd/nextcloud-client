@@ -29,6 +29,12 @@ linux:
   extraResources:
     - from: src-rust/target/linux-release/nextcloud-client
       to: bin/nextcloud-client
+    - from: src-rust/target/linux-release/aria2c
+      to: bin/aria2c
+
+deb:
+  depends:
+    - aria2
 
 mac:
   target: dmg
