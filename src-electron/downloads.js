@@ -70,6 +70,7 @@ function defaultSettings() {
     uploadSpeedLimit: 0,
     downloadSpeedLimit: 0,
     language: 'en',
+    fileViewMode: 'table',
     accounts: [],
     activeAccount: null,
   };

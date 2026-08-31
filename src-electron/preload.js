@@ -47,4 +47,10 @@ contextBridge.exposeInMainWorld('nextcloud', {
     ipcRenderer.on('torrent:status', listener);
     return () => ipcRenderer.removeListener('torrent:status', listener);
   },
+  // Fired when a completed torrent's files have been uploaded to the cloud.
+  onTorrentUploaded: (callback) => {
+    const listener = (_e, data) => callback(data);
+    ipcRenderer.on('torrent:uploaded', listener);
+    return () => ipcRenderer.removeListener('torrent:uploaded', listener);
+  },
 });

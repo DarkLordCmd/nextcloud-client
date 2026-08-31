@@ -12,6 +12,8 @@ import { I18nProvider, createTranslator, translateError } from '../i18n';
 
 const AppContext = createContext(null);
 
+const VALID_VIEW_MODES = ['table', 'list', 'small', 'medium', 'large', 'xlarge', 'tiles', 'content'];
+
 export function useApp() {
   return useContext(AppContext);
 }
@@ -30,6 +32,17 @@ export function AppProvider({ children }) {
   const [preview, setPreview] = useState(null);
   const [settings, setSettings] = useState(null);
   const [language, setLanguageState] = useState('en');
+  const [viewMode, setViewModeState] = useState('table');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [searchTruncated, setSearchTruncated] = useState(false);
+  const [searchError, setSearchError] = useState(null);
+  const [trashView, setTrashView] = useState(false);
+  const [trashItems, setTrashItems] = useState([]);
+  const [trashLoading, setTrashLoading] = useState(false);
+  const [trashError, setTrashError] = useState(null);
+  const [quota, setQuota] = useState(null);
 
   const t = useMemo(() => createTranslator(language), [language]);
 
@@ -40,6 +53,8 @@ export function AppProvider({ children }) {
   const operationsRef = useRef([]);
   // Sequence guard so a stale list() response cannot overwrite a newer one.
   const listSeq = useRef(0);
+  // Guard for search requests (latest query wins).
+  const searchSeq = useRef(0);
   // Short-lived listing cache (path -> { files, ts }) for instant back-navigation.
   const listCache = useRef(new Map());
   const LIST_CACHE_TTL = 20000;
@@ -74,6 +89,7 @@ export function AppProvider({ children }) {
         .then((s) => {
           setSettings(s);
           if (s.language === 'en' || s.language === 'ru') setLanguageState(s.language);
+          if (VALID_VIEW_MODES.includes(s.fileViewMode)) setViewModeState(s.fileViewMode);
         })
         .catch(() => {});
     }
@@ -104,6 +120,103 @@ export function AppProvider({ children }) {
       await window.nextcloud.updateSettings({ language: lang }).catch(() => {});
     }
   }, []);
+
+  const setViewMode = useCallback((mode) => {
+    if (!VALID_VIEW_MODES.includes(mode)) return;
+    setViewModeState(mode);
+    if (window.nextcloud && window.nextcloud.updateSettings) {
+      window.nextcloud.updateSettings({ fileViewMode: mode }).catch(() => {});
+    }
+  }, []);
+
+  const runSearch = useCallback(async (rawQuery) => {
+    const q = (rawQuery || '').trim();
+    if (!q) {
+      searchSeq.current += 1;
+      setSearchQuery('');
+      setSearchResults([]);
+      setSearching(false);
+      setSearchTruncated(false);
+      setSearchError(null);
+      return;
+    }
+    const seq = ++searchSeq.current;
+    setSearchQuery(q);
+    setSearching(true);
+    setSearchTruncated(false);
+    setSearchError(null);
+    try {
+      const data = await api.search(q);
+      if (seq !== searchSeq.current) return;
+      setSearchResults(data.items || []);
+      setSearchTruncated(!!data.truncated);
+    } catch (e) {
+      if (seq === searchSeq.current) setSearchError(translateError(t, e));
+    } finally {
+      if (seq === searchSeq.current) setSearching(false);
+    }
+  }, [t]);
+
+  const clearSearch = useCallback(() => {
+    searchSeq.current += 1;
+    setSearchQuery('');
+    setSearchResults([]);
+    setSearching(false);
+    setSearchTruncated(false);
+    setSearchError(null);
+  }, []);
+
+  // --- Storage quota + trashbin ---
+  const loadQuota = useCallback(async () => {
+    try {
+      setQuota(await api.quota());
+    } catch {
+      // Keep whatever we had; a missing quota bar is non-fatal.
+    }
+  }, []);
+
+  const loadTrash = useCallback(async () => {
+    setTrashLoading(true);
+    setTrashError(null);
+    try {
+      const data = await api.listTrash();
+      setTrashItems(data.items || []);
+    } catch (e) {
+      setTrashError(translateError(t, e));
+    } finally {
+      setTrashLoading(false);
+    }
+  }, [t]);
+
+  const openTrash = useCallback(() => {
+    clearSearch();
+    setTrashView(true);
+    loadTrash();
+  }, [clearSearch, loadTrash]);
+
+  const restoreTrashItem = useCallback(
+    async (path, original) => {
+      await api.restoreTrash(path, original);
+      await loadTrash();
+      loadQuota();
+    },
+    [loadTrash, loadQuota]
+  );
+
+  const deleteTrashItem = useCallback(
+    async (path) => {
+      await api.deleteTrash(path);
+      await loadTrash();
+      loadQuota();
+    },
+    [loadTrash, loadQuota]
+  );
+
+  const emptyTrash = useCallback(async () => {
+    await api.emptyTrash();
+    setTrashItems([]);
+    loadQuota();
+  }, [loadQuota]);
 
   const invalidateCache = useCallback((path) => {
     listCache.current.delete(path);
@@ -153,6 +266,7 @@ export function AppProvider({ children }) {
   useEffect(() => {
     if (auth && auth.logged_in) {
       loadFiles('/');
+      loadQuota();
       const data = auth;
       setAuth(data);
     }
@@ -160,11 +274,13 @@ export function AppProvider({ children }) {
 
   const navigate = useCallback(
     (path) => {
+      clearSearch();
+      setTrashView(false);
       setCurrentPath(path);
       loadFiles(path);
       setSelected(new Set());
     },
-    [loadFiles]
+    [loadFiles, clearSearch]
   );
 
   const goUp = useCallback(() => {
@@ -185,6 +301,7 @@ export function AppProvider({ children }) {
       setCurrentPath('/');
       invalidateCache('/');
       loadFiles('/');
+      loadQuota();
       // Persist accounts to disk. The backend returns accounts without
       // passwords, so attach the just-entered password to the active account
       // here; the main process keeps existing passwords for the others.
@@ -229,6 +346,7 @@ export function AppProvider({ children }) {
       setSelected(new Set());
       invalidateCache('/');
       loadFiles('/');
+      loadQuota();
       if (window.nextcloud && window.nextcloud.saveAccounts) {
         window.nextcloud.saveAccounts(data.accounts, data.active).catch(() => {});
       }
@@ -431,6 +549,17 @@ export function AppProvider({ children }) {
     return off;
   }, []);
 
+  // When a completed torrent's files are uploaded to the cloud, refresh the
+  // current folder so the new file appears without a manual F5.
+  useEffect(() => {
+    if (!window.nextcloud || !window.nextcloud.onTorrentUploaded) return;
+    const off = window.nextcloud.onTorrentUploaded((data) => {
+      if (data && data.targetDir) invalidateCache(data.targetDir);
+      loadFiles(pathRef.current);
+    });
+    return off;
+  }, [invalidateCache, loadFiles]);
+
   // Download many files in parallel with a concurrency limit. Throws the first
   // error encountered after all downloads finish.
   const downloadMany = useCallback(
@@ -518,7 +647,8 @@ export function AppProvider({ children }) {
     setSelected(new Set());
     invalidateCache(dir);
     loadFiles(dir);
-  }, [loadFiles, invalidateCache, t]);
+    loadQuota();
+  }, [loadFiles, invalidateCache, t, loadQuota]);
 
   const renameItem = useCallback(
     async (path, newName) => {
@@ -561,6 +691,9 @@ export function AppProvider({ children }) {
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
         e.preventDefault();
         selectAll();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('nc:focus-search'));
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'u') {
         e.preventDefault();
         openUploadDialog();
@@ -613,6 +746,26 @@ export function AppProvider({ children }) {
       updateSettings,
       language,
       setLanguage,
+      viewMode,
+      setViewMode,
+      searchQuery,
+      searchResults,
+      searching,
+      searchTruncated,
+      searchError,
+      runSearch,
+      clearSearch,
+      trashView,
+      trashItems,
+      trashLoading,
+      trashError,
+      quota,
+      openTrash,
+      loadTrash,
+      restoreTrashItem,
+      deleteTrashItem,
+      emptyTrash,
+      loadQuota,
       setError,
       inputRef,
       login,
@@ -658,6 +811,26 @@ export function AppProvider({ children }) {
       updateSettings,
       language,
       setLanguage,
+      viewMode,
+      setViewMode,
+      searchQuery,
+      searchResults,
+      searching,
+      searchTruncated,
+      searchError,
+      runSearch,
+      clearSearch,
+      trashView,
+      trashItems,
+      trashLoading,
+      trashError,
+      quota,
+      openTrash,
+      loadTrash,
+      restoreTrashItem,
+      deleteTrashItem,
+      emptyTrash,
+      loadQuota,
       login,
       logout,
       switchAccount,

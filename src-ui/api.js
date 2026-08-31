@@ -78,6 +78,30 @@ export const api = {
   list(path) {
     return request(`/api/files?path=${encodeURIComponent(path)}`);
   },
+  search(query) {
+    return request(`/api/files/search?q=${encodeURIComponent(query)}`);
+  },
+  quota() {
+    return request('/api/files/quota');
+  },
+  listTrash() {
+    return request('/api/files/trash');
+  },
+  restoreTrash(path, original) {
+    return request('/api/files/trash/restore', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, original }),
+    });
+  },
+  deleteTrash(path) {
+    return request(`/api/files/trash?path=${encodeURIComponent(path)}`, {
+      method: 'DELETE',
+    });
+  },
+  emptyTrash() {
+    return request('/api/files/trash', { method: 'DELETE' });
+  },
   downloadUrl(path) {
     return withToken(`${BACKEND}/api/files/download?path=${encodeURIComponent(path)}`);
   },

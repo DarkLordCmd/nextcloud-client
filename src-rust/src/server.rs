@@ -16,7 +16,7 @@ use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 use crate::{
     auth::{self, AuthState},
-    download, export, models::ProgressEvent, nextcloud, settings, upload,
+    download, export, models::ProgressEvent, nextcloud, search, settings, trash, upload,
 };
 
 /// Shared application state passed to every handler via `State`.
@@ -138,6 +138,13 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/files/export", get(export::export_file))
         .route("/api/files/upload", post(upload::upload_file))
         .route("/api/files/mkdir", post(nextcloud::mkdir))
+        .route("/api/files/search", get(search::search_files))
+        .route("/api/files/quota", get(trash::quota))
+        .route(
+            "/api/files/trash",
+            get(trash::list_trash).delete(trash::delete_trash),
+        )
+        .route("/api/files/trash/restore", post(trash::restore_trash))
         .route("/api/files/rename", patch(nextcloud::rename))
         .route("/api/files/progress", get(upload::progress_sse))
         .route("/api/settings/upload-limit", put(settings::set_upload_limit))

@@ -8,21 +8,27 @@ import Toolbar from './components/Toolbar';
 import Breadcrumb from './components/Breadcrumb';
 import ProgressPanel from './components/ProgressPanel';
 import PreviewPanel from './components/PreviewPanel';
+import SearchField from './components/SearchField';
+import SearchResults from './components/SearchResults';
+import TrashPanel from './components/TrashPanel';
 
 function MainScreen() {
-  const { inputRef, dragOver, uploadFiles, preview, closePreview } = useApp();
+  const { inputRef, dragOver, uploadFiles, preview, closePreview, searchQuery, trashView } = useApp();
   const { t } = useI18n();
 
   return (
     <div className="relative flex h-full flex-col">
       <header className="flex items-center justify-between border-b border-nc-border bg-nc-panel px-4 py-2">
         <Breadcrumb />
-        <Toolbar />
+        <div className="flex items-center gap-2">
+          <SearchField />
+          <Toolbar />
+        </div>
       </header>
 
       <div className="flex min-h-0 flex-1">
         <FileExplorer />
-        <FileList />
+        {searchQuery ? <SearchResults /> : trashView ? <TrashPanel /> : <FileList />}
       </div>
 
       <ProgressPanel />

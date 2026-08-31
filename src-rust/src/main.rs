@@ -3,8 +3,10 @@ pub mod download;
 pub mod export;
 pub mod models;
 pub mod nextcloud;
+pub mod search;
 pub mod server;
 pub mod settings;
+pub mod trash;
 pub mod upload;
 
 use std::net::SocketAddr;

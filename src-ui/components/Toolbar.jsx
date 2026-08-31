@@ -4,6 +4,7 @@ import { useI18n, translateError } from '../i18n';
 import AccountMenu from './AccountMenu';
 import TorrentsPanel from './TorrentsPanel';
 import SettingsModal from './SettingsModal';
+import ViewModeMenu from './ViewModeMenu';
 
 const BTN =
   'flex items-center gap-1.5 rounded-lg border border-nc-border bg-nc-bg px-3 py-1.5 text-sm hover:bg-nc-hover disabled:cursor-not-allowed disabled:opacity-50';
@@ -81,6 +82,7 @@ export default function Toolbar() {
       <button className={BTN} onClick={refresh} title={t('toolbar.refreshTitle')}>
         🔄
       </button>
+      <ViewModeMenu />
       <button className={BTN} onClick={() => setShowTorrents(true)} title="Torrents">
         ⚡
       </button>
