@@ -25,6 +25,8 @@ linux:
   target:
     - AppImage
     - deb
+  maintainer: DarkLordCmd
+  homepage: https://github.com/DarkLordCmd/nextcloud-client
   extraResources:
     - from: src-rust/target/linux-release/nextcloud-client
       to: bin/nextcloud-client
