@@ -22,7 +22,9 @@ win:
       to: bin/aria2c.exe
 
 linux:
-  target: AppImage
+  target:
+    - AppImage
+    - deb
   extraResources:
     - from: src-rust/target/linux-release/nextcloud-client
       to: bin/nextcloud-client
